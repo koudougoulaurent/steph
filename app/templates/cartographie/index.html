@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}Cartographie — VégéSuivi Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+  #map-main { height: calc(100vh - 180px); border-radius: 8px; }
+  .layer-panel { background: white; border-radius: 8px; position: absolute; top: 80px; right: 16px;
+                 z-index: 1000; width: 260px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 0; }
+  .layer-header { background: linear-gradient(135deg, #1a5276, #117a65);
+                  color: white; padding: 10px 14px; border-radius: 8px 8px 0 0; font-weight: 600; }
+  .popup-title { font-weight: 700; color: #1a5276; margin-bottom: 4px; }
+  .leaflet-popup-content { min-width: 200px; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-map me-2 text-success-custom"></i>Cartographie Interactive</h4>
+        <small class="text-muted">Multi-couches — Feux · Sites vulnérables · Braconnage · Végétation</small>
+      </div>
+      <a href="{{ url_for('cartographie.dynamique') }}" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-film me-1"></i>Dynamique temporelle
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="position-relative" style="margin: -8px -24px 0;">
+
+  <!-- Carte principale -->
+  <div id="map-main"></div>
+
+  <!-- Panneau de couches -->
+  <div class="layer-panel">
+    <div class="layer-header"><i class="bi bi-layers me-2"></i>Couches cartographiques</div>
+    <div class="p-3">
+
+      <p class="small fw-bold text-muted mb-2 text-uppercase" style="font-size:0.72rem">Données thématiques</p>
+
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="layerFeux" checked onchange="toggleLayer('feux')">
+        <label class="form-check-label small" for="layerFeux">
+          <span class="legend-dot" style="background:#e74c3c"></span> Feux de brousse
+        </label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="layerSites" checked onchange="toggleLayer('sites')">
+        <label class="form-check-label small" for="layerSites">
+          <span class="legend-dot" style="background:#f39c12"></span> Sites vulnérables
+        </label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="layerBraconnage" checked onchange="toggleLayer('braconnage')">
+        <label class="form-check-label small" for="layerBraconnage">
+          <span class="legend-dot" style="background:#8e44ad"></span> Indicateurs braconnage
+        </label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="layerObs" onchange="toggleLayer('obs')">
+        <label class="form-check-label small" for="layerObs">
+          <span class="legend-dot" style="background:#2980b9"></span> Observations terrain
+        </label>
+      </div>
+
+      <hr class="my-2">
+      <p class="small fw-bold text-muted mb-2 text-uppercase" style="font-size:0.72rem">Filtres</p>
+
+      <label class="form-label small mb-1">Filtrer feux par année</label>
+      <select class="form-select form-select-sm mb-2" id="filtrAnneeFeux" onchange="refreshFeux()">
+        <option value="">Toutes les années</option>
+        {% for annee in annees %}
+          <option value="{{ annee }}">{{ annee }}</option>
+        {% endfor %}
+      </select>
+
+      <label class="form-label small mb-1">Sites — vulnérabilité</label>
+      <select class="form-select form-select-sm mb-3" id="filtreNiveauSite" onchange="refreshSites()">
+        <option value="">Tous niveaux</option>
+        <option value="Critique">Critique</option>
+        <option value="Élevé">Élevé</option>
+        <option value="Moyen">Moyen</option>
+        <option value="Faible">Faible</option>
+      </select>
+
+      <button class="btn btn-sm btn-outline-secondary w-100" onclick="resetView()">
+        <i class="bi bi-arrows-angle-contract me-1"></i>Recentrer
+      </button>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialiser la carte centrée sur l'Afrique de l'Ouest
+const map = L.map('map-main', {
+  center: [12.5, -1.5],
+  zoom: 7,
+  zoomControl: true
+});
+
+// Fond de carte OSM
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 18
+}).addTo(map);
+
+// Fond satellite
+const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles © Esri'
+});
+
+// Contrôle couches de fond
+L.control.layers({
+  'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OSM'}).addTo(map),
+  'Satellite': satellite
+}, {}, {position: 'topleft'}).addTo(map);
+
+// Couches de données
+let layers = { feux: null, sites: null, braconnage: null, obs: null };
+
+function getFeuxColor(intensite) {
+  const c = { 'Très fort': '#c0392b', 'Fort': '#e74c3c', 'Moyen': '#e67e22', 'Faible': '#f1c40f' };
+  return c[intensite] || '#e74c3c';
+}
+function getSiteColor(niveau) {
+  const c = { 'Critique': '#c0392b', 'Élevé': '#e67e22', 'Moyen': '#f39c12', 'Faible': '#27ae60' };
+  return c[niveau] || '#95a5a6';
+}
+function getGraviteColor(gravite) {
+  const c = { 'Critique': '#8e44ad', 'Grave': '#c0392b', 'Moyen': '#e67e22', 'Faible': '#27ae60' };
+  return c[gravite] || '#7f8c8d';
+}
+
+function loadLayer(name, url, markerFn) {
+  if (layers[name]) { layers[name].remove(); layers[name] = null; }
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      const group = L.layerGroup();
+      data.features.forEach(f => {
+        if (f.geometry && f.geometry.coordinates) {
+          const [lng, lat] = f.geometry.coordinates;
+          const marker = markerFn(f.properties, lat, lng);
+          if (marker) group.addLayer(marker);
+        }
+      });
+      if (document.getElementById('layer' + name.charAt(0).toUpperCase() + name.slice(1)) &&
+          document.getElementById('layer' + name.charAt(0).toUpperCase() + name.slice(1)).checked) {
+        group.addTo(map);
+      }
+      layers[name] = group;
+    });
+}
+
+function loadFeux(annee = '') {
+  const url = "{{ url_for('cartographie.api_feux') }}" + (annee ? '?annee=' + annee : '');
+  loadLayer('feux', url, (props, lat, lng) => {
+    const color = getFeuxColor(props.intensite);
+    const marker = L.circleMarker([lat, lng], {
+      radius: Math.min(20, 5 + (props.superficie_brulee_ha || 0) / 100),
+      fillColor: color, color: '#fff', weight: 1.5,
+      opacity: 1, fillOpacity: 0.8
+    });
+    marker.bindPopup(`
+      <div class="popup-title"><i class="bi bi-fire" style="color:${color}"></i> ${props.reference || 'Feu'}</div>
+      <table class="table table-sm table-borderless mb-0" style="font-size:0.85rem">
+        <tr><td class="text-muted">Zone</td><td>${props.zone || '-'}</td></tr>
+        <tr><td class="text-muted">Superficie</td><td><b>${props.superficie_brulee_ha || 0} ha</b></td></tr>
+        <tr><td class="text-muted">Intensité</td><td>${props.intensite || '-'}</td></tr>
+        <tr><td class="text-muted">Cause</td><td>${props.cause || '-'}</td></tr>
+        <tr><td class="text-muted">Statut</td><td>${props.statut || '-'}</td></tr>
+      </table>
+    `);
+    return marker;
+  });
+}
+
+function loadSites(niveau = '') {
+  const url = "{{ url_for('cartographie.api_sites_vulnerables') }}" + (niveau ? '?niveau=' + niveau : '');
+  loadLayer('sites', url, (props, lat, lng) => {
+    const color = getSiteColor(props.niveau_vulnerabilite);
+    const marker = L.circleMarker([lat, lng], {
+      radius: 10, fillColor: color, color: '#fff',
+      weight: 2, opacity: 1, fillOpacity: 0.9
+    });
+    marker.bindPopup(`
+      <div class="popup-title" style="color:${color}"><i class="bi bi-geo-alt-fill"></i> ${props.nom || '-'}</div>
+      <table class="table table-sm table-borderless mb-0" style="font-size:0.85rem">
+        <tr><td class="text-muted">Type</td><td>${props.type_site || '-'}</td></tr>
+        <tr><td class="text-muted">Zone</td><td>${props.zone || '-'}</td></tr>
+        <tr><td class="text-muted">Vulnérabilité</td>
+            <td><b style="color:${color}">${props.niveau_vulnerabilite || '-'}</b></td></tr>
+        <tr><td class="text-muted">Score</td><td>${props.score_vulnerabilite || '-'}/100</td></tr>
+      </table>
+    `);
+    return marker;
+  });
+}
+
+function loadBraconnage() {
+  loadLayer('braconnage', "{{ url_for('cartographie.api_braconnage') }}", (props, lat, lng) => {
+    const color = getGraviteColor(props.niveau_gravite);
+    const marker = L.circleMarker([lat, lng], {
+      radius: 9, fillColor: color, color: '#fff',
+      weight: 2, opacity: 1, fillOpacity: 0.85
+    });
+    marker.bindPopup(`
+      <div class="popup-title" style="color:${color}"><i class="bi bi-exclamation-triangle-fill"></i> ${props.reference || '-'}</div>
+      <table class="table table-sm table-borderless mb-0" style="font-size:0.85rem">
+        <tr><td class="text-muted">Type</td><td>${props.type_indicateur || '-'}</td></tr>
+        <tr><td class="text-muted">Zone</td><td>${props.zone || '-'}</td></tr>
+        <tr><td class="text-muted">Gravité</td><td><b>${props.niveau_gravite || '-'}</b></td></tr>
+        <tr><td class="text-muted">Statut</td><td>${props.statut || '-'}</td></tr>
+      </table>
+    `);
+    return marker;
+  });
+}
+
+function loadObs() {
+  loadLayer('obs', "{{ url_for('cartographie.api_observations') }}", (props, lat, lng) => {
+    const catColors = {
+      'vegetation': '#27ae60', 'faune': '#2980b9', 'feu': '#e74c3c',
+      'braconnage': '#8e44ad', 'eau': '#3498db', 'sol': '#e67e22'
+    };
+    const color = catColors[props.categorie] || '#7f8c8d';
+    const marker = L.circleMarker([lat, lng], {
+      radius: 7, fillColor: color, color: '#fff',
+      weight: 1.5, opacity: 1, fillOpacity: 0.75
+    });
+    marker.bindPopup(`
+      <div class="popup-title" style="color:${color}"><i class="bi bi-eye-fill"></i> ${props.titre || props.reference || '-'}</div>
+      <table class="table table-sm table-borderless mb-0" style="font-size:0.85rem">
+        <tr><td class="text-muted">Catégorie</td><td>${props.categorie || '-'}</td></tr>
+        <tr><td class="text-muted">Zone</td><td>${props.zone || '-'}</td></tr>
+        <tr><td class="text-muted">État</td><td>${props.etat_general || '-'}</td></tr>
+        <tr><td class="text-muted">Alerte</td><td>${props.niveau_alerte || '-'}</td></tr>
+        <tr><td class="text-muted">Validée</td><td>${props.validee ? '✅' : '⏳'}</td></tr>
+      </table>
+    `);
+    return marker;
+  });
+}
+
+function toggleLayer(name) {
+  const cb = document.getElementById('layer' + name.charAt(0).toUpperCase() + name.slice(1));
+  if (layers[name]) {
+    if (cb.checked) { layers[name].addTo(map); }
+    else { layers[name].remove(); }
+  }
+}
+
+function refreshFeux() {
+  const annee = document.getElementById('filtrAnneeFeux').value;
+  loadFeux(annee);
+}
+
+function refreshSites() {
+  const niveau = document.getElementById('filtreNiveauSite').value;
+  loadSites(niveau);
+}
+
+function resetView() {
+  map.setView([12.5, -1.5], 7);
+}
+
+// Légende nord
+const legend = L.control({ position: 'bottomleft' });
+legend.onAdd = function() {
+  const div = L.DomUtil.create('div', 'leaflet-bar');
+  div.style.cssText = 'background:white;padding:10px;border-radius:8px;font-size:0.8rem;line-height:1.8';
+  div.innerHTML = `<b>Légende</b><br>
+    <span style="color:#e74c3c">● </span> Feu de brousse<br>
+    <span style="color:#f39c12">● </span> Site vulnérable<br>
+    <span style="color:#8e44ad">● </span> Braconnage<br>
+    <span style="color:#2980b9">● </span> Observation terrain`;
+  return div;
+};
+legend.addTo(map);
+
+// Chargement initial
+loadFeux();
+loadSites();
+loadBraconnage();
+
+// ── Focus sur une position passée en URL (?lat=&lng=&zoom=&popup=) ──────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const lat = parseFloat(params.get('lat'));
+  const lng = parseFloat(params.get('lng'));
+  if (!isNaN(lat) && !isNaN(lng)) {
+    const zoom = parseInt(params.get('zoom')) || 14;
+    const popupText = params.get('popup') || '';
+    map.setView([lat, lng], zoom);
+    const highlight = L.circleMarker([lat, lng], {
+      radius: 16, fillColor: '#f1c40f', color: '#e67e22',
+      weight: 3, opacity: 1, fillOpacity: 0.5
+    }).addTo(map);
+    if (popupText) {
+      highlight.bindPopup('<b>' + decodeURIComponent(popupText) + '</b>').openPopup();
+    }
+    setTimeout(() => highlight.remove(), 8000);
+  }
+})();
+</script>
+{% endblock %}

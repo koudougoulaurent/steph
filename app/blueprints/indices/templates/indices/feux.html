@@ -1,0 +1,768 @@
+{% extends "base.html" %}
+{% block title %}Indices Feux de Brousse — VégéSuivi Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Cartes d'indice ── */
+  .indice-card { border-top: 4px solid #e74c3c; transition: box-shadow .2s; }
+  .indice-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+
+  /* ── Formule ── */
+  .formula-box {
+    background: #fff5f5; border-left: 3px solid #e74c3c;
+    padding: 8px 14px; border-radius: 4px;
+    font-family: 'Courier New', monospace; font-size: .88rem;
+  }
+
+  /* ── Valeur grande ── */
+  .val-display { font-size: 2.4rem; font-weight: 800; letter-spacing: -1px; }
+
+  /* ── Sévérité dNBR ── */
+  .severity-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; }
+  .severity-bar span { flex: 1; }
+  .dnbr-legend { font-size:.72rem; display:flex; justify-content:space-between; color:#6c757d; }
+
+  /* ── Onglets ── */
+  .nav-tabs .nav-link { font-size: .9rem; font-weight: 600; }
+  .nav-tabs .nav-link.active { background:#fff; border-bottom-color:#fff; }
+
+  /* ── Upload satellite ── */
+  .upload-zone {
+    border: 2px dashed #adb5bd; border-radius: 8px;
+    padding: 10px 14px; background: #f8f9fa; transition: border-color .2s;
+  }
+  .upload-zone:focus-within { border-color: #e74c3c; background: #fff5f5; }
+
+  /* ── Stats raster ── */
+  .stat-pill {
+    display: inline-flex; flex-direction: column; align-items: center;
+    background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;
+    padding: 6px 12px; min-width: 80px; font-size: .78rem;
+  }
+  .stat-pill strong { font-size: 1rem; color: #212529; }
+
+  /* ── Distribution ── */
+  .distrib-bar { height: 18px; border-radius: 4px; display: flex; overflow: hidden; }
+  .distrib-bar span {
+    display: flex; align-items: center; justify-content: center;
+    font-size: .65rem; color: #fff; font-weight: 700;
+    transition: flex .4s ease; overflow: hidden; min-width: 0;
+  }
+
+  /* ── Image raster ── */
+  .raster-img { width: 100%; border-radius: 8px; border: 1px solid #dee2e6;
+                image-rendering: pixelated; }
+
+  /* ── Preset btn ── */
+  .preset-btn { cursor: pointer; transition: background .15s; }
+  .preset-btn:hover { background: #e74c3c !important; color: #fff !important; }
+
+  /* ── Section dNBR multi-dates ── */
+  .dnbr-section { background: #fff5f5; border: 1px solid #f8d7da;
+                  border-radius: 8px; padding: 12px; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold">
+          <i class="bi bi-fire me-2 text-danger"></i>Indices Feux de Brousse
+        </h4>
+        <small class="text-muted">NBR · dNBR · BAI — Scalaires & images satellite</small>
+      </div>
+      <a href="{{ url_for('indices.vegetation') }}" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-flower2 me-1"></i>Indices végétation
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ═══════════════════════════════ PANNEAU GAUCHE ═══════════════════════════════ -->
+  <div class="col-12 col-xl-4">
+    <div class="card shadow-sm sticky-top" style="top:76px">
+
+      <!-- Onglets -->
+      <div class="card-header bg-white pb-0 border-bottom-0">
+        <ul class="nav nav-tabs card-header-tabs" id="modeTabsFeux" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if mode != 'raster' %}active{% endif %}"
+                    id="tab-manual-feux-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-manual-feux"
+                    type="button" role="tab">
+              <i class="bi bi-keyboard me-1"></i>Saisie manuelle
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if mode == 'raster' %}active{% endif %}"
+                    id="tab-raster-feux-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-raster-feux"
+                    type="button" role="tab">
+              <i class="bi bi-satellite me-1"></i>Image satellite
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card-body tab-content pt-3">
+
+        <!-- ─── TAB 1 : SAISIE MANUELLE ─── -->
+        <div class="tab-pane fade {% if mode != 'raster' %}show active{% endif %}"
+             id="tab-manual-feux" role="tabpanel">
+
+          <div class="alert alert-warning py-2 mb-3" style="font-size:.84rem">
+            <i class="bi bi-info-circle me-1"></i>
+            Valeurs de réflectance normalisées <strong>[0.0 – 1.0]</strong>.
+            SWIR ≈ 2.2 µm (Sentinel-2 B12 / Landsat B7).
+          </div>
+
+          <form method="POST" id="form-feux" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="mode" value="manual">
+
+            <h6 class="fw-bold text-muted text-uppercase mb-2" style="font-size:.75rem">
+              <i class="bi bi-layers me-1"></i>Bandes spectrales
+            </h6>
+
+            <!-- NIR -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                NIR <small class="text-muted">(Proche infrarouge)</small>
+                <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text bg-dark text-white" style="min-width:40px">
+                  <span style="display:inline-block;width:12px;height:12px;background:#8e44ad;border-radius:2px"></span>
+                </span>
+                <input type="number" name="nir" step="0.0001" min="0" max="1"
+                       class="form-control form-control-sm" required
+                       placeholder="0.35" value="{{ valeurs.get('nir','') if valeurs else '' }}">
+                <span class="input-group-text small text-muted">0–1</span>
+              </div>
+              <small class="text-muted">Sentinel-2 : B8 · Landsat 8/9 : B5</small>
+            </div>
+
+            <!-- SWIR -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                SWIR <small class="text-muted">(Infrarouge moyen ~2.2 µm)</small>
+                <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text" style="min-width:40px">
+                  <span style="display:inline-block;width:12px;height:12px;background:#e74c3c;border-radius:2px"></span>
+                </span>
+                <input type="number" name="swir" step="0.0001" min="0" max="1"
+                       class="form-control form-control-sm" required
+                       placeholder="0.45" value="{{ valeurs.get('swir','') if valeurs else '' }}">
+                <span class="input-group-text small text-muted">0–1</span>
+              </div>
+              <small class="text-muted">Sentinel-2 : B12 · Landsat 8/9 : B7</small>
+            </div>
+
+            <!-- Red -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                Red <small class="text-muted">(requis pour BAI)</small>
+                <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text" style="min-width:40px">
+                  <span style="display:inline-block;width:12px;height:12px;background:#e74c3c;border-radius:2px"></span>
+                </span>
+                <input type="number" name="red" step="0.0001" min="0" max="1"
+                       class="form-control form-control-sm"
+                       placeholder="0.15" value="{{ valeurs.get('red','') if valeurs else '' }}">
+                <span class="input-group-text small text-muted">0–1</span>
+              </div>
+              <small class="text-muted">Sentinel-2 : B4 · Landsat 8/9 : B4</small>
+            </div>
+
+            <hr class="my-3">
+            <h6 class="fw-bold text-muted text-uppercase mb-2" style="font-size:.75rem">
+              <i class="bi bi-calendar-range me-1"></i>dNBR — Analyse temporelle
+            </h6>
+            <p class="text-muted small mb-2">
+              Laissez <em>NBR pré-feu</em> vide pour utiliser le NBR calculé.
+            </p>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                NBR pré-feu <small class="text-muted">(optionnel)</small>
+              </label>
+              <input type="number" name="nbr_pre" step="0.0001" min="-1" max="1"
+                     class="form-control form-control-sm"
+                     placeholder="Vide = utiliser NBR calculé"
+                     value="{{ valeurs.get('nbr_pre','') if valeurs else '' }}">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                NBR post-feu <small class="text-muted">(optionnel)</small>
+              </label>
+              <input type="number" name="nbr_post" step="0.0001" min="-1" max="1"
+                     class="form-control form-control-sm"
+                     placeholder="Ex : −0.20"
+                     value="{{ valeurs.get('nbr_post','') if valeurs else '' }}">
+            </div>
+
+            {% if erreur and mode != 'raster' %}
+            <div class="alert alert-danger py-2 small">
+              <i class="bi bi-exclamation-circle me-1"></i>{{ erreur }}
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-danger w-100 mt-1" id="btn-calc">
+              <i class="bi bi-calculator me-2"></i>Calculer les indices feux
+            </button>
+            <a href="{{ url_for('indices.feux') }}"
+               class="btn btn-outline-secondary w-100 mt-2 btn-sm">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
+            </a>
+          </form>
+
+          <!-- Légende dNBR USGS -->
+          <div class="mt-4">
+            <p class="small fw-bold text-muted mb-2 text-uppercase" style="font-size:.72rem">
+              <i class="bi bi-palette me-1"></i>Classification dNBR — USGS
+            </p>
+            <div class="severity-bar mb-1">
+              <span style="background:#27ae60" title="Repousse"></span>
+              <span style="background:#2980b9" title="Non brûlé"></span>
+              <span style="background:#f1c40f" title="Faible sévérité"></span>
+              <span style="background:#e67e22" title="Modérée"></span>
+              <span style="background:#e74c3c" title="Haute"></span>
+              <span style="background:#8e44ad" title="Très haute"></span>
+            </div>
+            <div class="dnbr-legend">
+              <span>Repousse</span><span>Non brûlé</span>
+              <span>Faible</span><span>Modéré</span><span>Haute</span><span>Très haute</span>
+            </div>
+          </div>
+        </div>
+        <!-- /tab-manual -->
+
+        <!-- ─── TAB 2 : IMAGE SATELLITE ─── -->
+        <div class="tab-pane fade {% if mode == 'raster' %}show active{% endif %}"
+             id="tab-raster-feux" role="tabpanel">
+
+          <form method="POST" enctype="multipart/form-data" id="form-raster-feux" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="mode" value="raster">
+
+            <!-- Presets -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-uppercase text-muted"
+                     style="font-size:.72rem">
+                <i class="bi bi-stars me-1"></i>Préréglages satellites
+              </label>
+              <div class="d-flex flex-wrap gap-1">
+                <span class="badge border border-danger text-danger preset-btn-feux"
+                      onclick="setPresetFeux(this,'s2')">Sentinel-2</span>
+                <span class="badge border border-primary text-primary preset-btn-feux"
+                      onclick="setPresetFeux(this,'l89')">Landsat 8/9</span>
+                <span class="badge border border-secondary text-secondary preset-btn-feux"
+                      onclick="setPresetFeux(this,'l57')">Landsat 5/7</span>
+              </div>
+              <small class="text-muted d-block mt-1">Pré-remplit les numéros de bandes.</small>
+            </div>
+
+            <hr class="my-3">
+
+            <!-- Indices à calculer -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-uppercase text-muted"
+                     style="font-size:.72rem">
+                <i class="bi bi-check2-square me-1"></i>Indices à calculer
+              </label>
+              <div class="d-flex flex-wrap gap-2">
+                {% for idx_key, idx_color, idx_checked in [
+                   ('NBR','warning',true), ('BAI','danger',true), ('dNBR','danger',false)
+                ] %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox"
+                         name="indices_feux" value="{{ idx_key }}"
+                         id="chk_{{ idx_key }}_rf"
+                         {% if idx_checked %}checked{% endif %}
+                         onchange="toggleDnbrSection()">
+                  <label class="form-check-label" for="chk_{{ idx_key }}_rf">
+                    <span class="badge bg-{{ idx_color }}" style="font-size:.78rem">{{ idx_key }}</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+              <small class="text-muted">dNBR nécessite 4 images (avant + après feu).</small>
+            </div>
+
+            <hr class="my-3">
+
+            <!-- NIR image (unique date) -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">
+                <span style="display:inline-block;width:12px;height:12px;background:#8e44ad;border-radius:2px;vertical-align:middle"></span>
+                Image NIR <span class="text-danger">*</span>
+                <small class="text-muted">(NBR / BAI)</small>
+              </label>
+              <div class="upload-zone mb-1">
+                <input type="file" name="nir_tif"
+                       class="form-control form-control-sm border-0 bg-transparent p-0"
+                       accept=".tif,.tiff">
+              </div>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Bande n°</span>
+                <input type="number" name="nir_bande" id="f_nir_bande"
+                       class="form-control" min="1" value="1">
+                <span class="input-group-text text-muted" style="font-size:.75rem">S2:B8 L8:B5</span>
+              </div>
+            </div>
+
+            <!-- SWIR image -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">
+                <span style="display:inline-block;width:12px;height:12px;background:#e74c3c;border-radius:2px;vertical-align:middle"></span>
+                Image SWIR <span class="text-danger">*</span>
+                <small class="text-muted">(NBR)</small>
+              </label>
+              <div class="upload-zone mb-1">
+                <input type="file" name="swir_tif"
+                       class="form-control form-control-sm border-0 bg-transparent p-0"
+                       accept=".tif,.tiff">
+              </div>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Bande n°</span>
+                <input type="number" name="swir_bande" id="f_swir_bande"
+                       class="form-control" min="1" value="1">
+                <span class="input-group-text text-muted" style="font-size:.75rem">S2:B12 L8:B7</span>
+              </div>
+            </div>
+
+            <!-- Red image -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">
+                <span style="display:inline-block;width:12px;height:12px;background:#e74c3c;border-radius:2px;vertical-align:middle"></span>
+                Image Red
+                <small class="text-muted">(requis pour BAI)</small>
+              </label>
+              <div class="upload-zone mb-1">
+                <input type="file" name="red_tif"
+                       class="form-control form-control-sm border-0 bg-transparent p-0"
+                       accept=".tif,.tiff">
+              </div>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Bande n°</span>
+                <input type="number" name="red_bande" id="f_red_bande"
+                       class="form-control" min="1" value="1">
+                <span class="input-group-text text-muted" style="font-size:.75rem">S2:B4 L8:B4</span>
+              </div>
+            </div>
+
+            <!-- ─ dNBR — Section multi-dates (affichée si dNBR coché) ─ -->
+            <div id="dnbr-section" class="dnbr-section mb-3" style="display:none">
+              <p class="fw-bold mb-2 small text-danger">
+                <i class="bi bi-calendar-range me-1"></i>Section dNBR — 4 images requises
+              </p>
+
+              <!-- PRÉ-FEU -->
+              <p class="fw-semibold small text-muted mb-1 text-uppercase" style="font-size:.7rem">
+                Avant le feu
+              </p>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small">NIR pré-feu</label>
+                <div class="upload-zone mb-1">
+                  <input type="file" name="pre_nir_tif"
+                         class="form-control form-control-sm border-0 bg-transparent p-0"
+                         accept=".tif,.tiff">
+                </div>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">Bande</span>
+                  <input type="number" name="pre_nir_bande" id="f_pre_nir_bande"
+                         class="form-control" min="1" value="1">
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold small">SWIR pré-feu</label>
+                <div class="upload-zone mb-1">
+                  <input type="file" name="pre_swir_tif"
+                         class="form-control form-control-sm border-0 bg-transparent p-0"
+                         accept=".tif,.tiff">
+                </div>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">Bande</span>
+                  <input type="number" name="pre_swir_bande" id="f_pre_swir_bande"
+                         class="form-control" min="1" value="1">
+                </div>
+              </div>
+
+              <!-- POST-FEU -->
+              <p class="fw-semibold small text-muted mb-1 text-uppercase" style="font-size:.7rem">
+                Après le feu
+              </p>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small">NIR post-feu</label>
+                <div class="upload-zone mb-1">
+                  <input type="file" name="post_nir_tif"
+                         class="form-control form-control-sm border-0 bg-transparent p-0"
+                         accept=".tif,.tiff">
+                </div>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">Bande</span>
+                  <input type="number" name="post_nir_bande" id="f_post_nir_bande"
+                         class="form-control" min="1" value="1">
+                </div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small">SWIR post-feu</label>
+                <div class="upload-zone mb-1">
+                  <input type="file" name="post_swir_tif"
+                         class="form-control form-control-sm border-0 bg-transparent p-0"
+                         accept=".tif,.tiff">
+                </div>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">Bande</span>
+                  <input type="number" name="post_swir_bande" id="f_post_swir_bande"
+                         class="form-control" min="1" value="1">
+                </div>
+              </div>
+            </div>
+            <!-- /dnbr-section -->
+
+            {% if erreur and mode == 'raster' %}
+            <div class="alert alert-danger py-2 small">
+              <i class="bi bi-exclamation-circle me-1"></i>{{ erreur }}
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-danger w-100 mt-1" id="btn-raster-feux">
+              <i class="bi bi-cpu me-2"></i>Traiter l'image satellite
+            </button>
+            <a href="{{ url_for('indices.feux') }}"
+               class="btn btn-outline-secondary w-100 mt-2 btn-sm">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
+            </a>
+          </form>
+
+          <div class="mt-3 alert alert-light border small mb-0">
+            <i class="bi bi-lightbulb text-warning me-1"></i>
+            <strong>Formats :</strong> GeoTIFF (.tif / .tiff), mono-bande ou multi-bandes.
+            Sentinel-2 L2A, Landsat SR. Max 50 Mo.
+          </div>
+        </div>
+        <!-- /tab-raster -->
+
+      </div>
+    </div>
+  </div>
+  <!-- /col gauche -->
+
+  <!-- ═══════════════════════════════ PANNEAU DROIT ═══════════════════════════════ -->
+  <div class="col-12 col-xl-8">
+
+    {# ── RÉSULTATS RASTER ── #}
+    {% if raster_results %}
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h5 class="fw-bold mb-0">
+        <i class="bi bi-map me-2 text-danger"></i>
+        Résultats image satellite
+        <span class="badge bg-danger ms-2" style="font-size:.75rem">{{ raster_results|length }} indice(s)</span>
+      </h5>
+      <a href="{{ url_for('indices.feux') }}"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-x-circle me-1"></i>Nouveau calcul
+      </a>
+    </div>
+
+    {% for r in raster_results %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-white d-flex align-items-center gap-2">
+        <span class="badge bg-danger fs-6">{{ r.nom }}</span>
+        <span class="text-muted small">Carte colorimétrique — pixels valides :
+          <strong>{{ "%.1f"|format(100 - r.stats.pct_nodata) }}%</strong>
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 align-items-start">
+
+          <!-- Image colorimétrique -->
+          <div class="col-12 col-md-7">
+            {% if r.image_b64 %}
+            <img src="data:image/png;base64,{{ r.image_b64 }}"
+                 alt="Carte {{ r.nom }}" class="raster-img">
+            {% else %}
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-image" style="font-size:2rem"></i>
+              <p class="small mt-2">Visualisation non disponible</p>
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Stats & distribution -->
+          <div class="col-12 col-md-5">
+
+            <p class="fw-bold small text-uppercase text-muted mb-2" style="font-size:.72rem">
+              <i class="bi bi-bar-chart me-1"></i>Statistiques
+            </p>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              {% for label, key, _ in [
+                ('Min','min',''), ('Max','max',''), ('Moy','mean',''),
+                ('Écart-type','std',''), ('Médiane','mediane',''), ('NoData','pct_nodata','')
+              ] %}
+              <div class="stat-pill">
+                <span class="text-muted" style="font-size:.68rem">{{ label }}</span>
+                <strong>
+                  {% if key == 'pct_nodata' %}
+                    {{ "%.1f"|format(r.stats[key]) }}%
+                  {% else %}
+                    {{ "%.4f"|format(r.stats[key]) if r.stats.get(key) is not none else '—' }}
+                  {% endif %}
+                </strong>
+              </div>
+              {% endfor %}
+            </div>
+
+            {% if r.distribution %}
+            <p class="fw-bold small text-uppercase text-muted mb-2" style="font-size:.72rem">
+              <i class="bi bi-pie-chart me-1"></i>Distribution des sévérités
+            </p>
+            <div class="distrib-bar mb-2">
+              {% for d in r.distribution %}
+              <span style="flex:{{ d.pct }};background:{{ d.color }}"
+                    title="{{ d.label }} : {{ d.pct|round(1) }}%">
+                {% if d.pct > 8 %}{{ d.pct|round(0)|int }}%{% endif %}
+              </span>
+              {% endfor %}
+            </div>
+            <div class="d-flex flex-column gap-1 mt-1">
+              {% for d in r.distribution %}
+              <div class="d-flex align-items-center gap-2" style="font-size:.75rem">
+                <span style="display:inline-block;width:12px;height:12px;background:{{ d.color }};border-radius:2px;flex-shrink:0"></span>
+                <span>{{ d.label }}</span>
+                <span class="ms-auto text-muted fw-semibold">{{ "%.1f"|format(d.pct) }}%</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="mt-3 pt-2 border-top" style="font-size:.78rem;color:#6c757d">
+              <i class="bi bi-arrow-left-right me-1"></i>
+              Plage calculée : <strong>{{ "%.3f"|format(r.vmin) }}</strong>
+              → <strong>{{ "%.3f"|format(r.vmax) }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    {# ── RÉSULTATS MANUELS ── #}
+    {% elif resultats %}
+    <div class="row g-3">
+      {% for r in resultats %}
+      {% set has_val = r.valeur is not none %}
+      {% set inter = r.interpretation %}
+      <div class="col-12">
+        <div class="card shadow-sm indice-card"
+             style="border-top-color: var(--bs-{{ inter.couleur if inter and inter.couleur not in ['orange'] else 'warning' }})">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <span class="badge bg-{{ r.badge_color }} fs-6">{{ r.nom }}</span>
+                  <span class="text-muted small">{{ r.nom_long }}</span>
+                </div>
+                <div class="formula-box mb-2">{{ r.formule }}</div>
+                <small class="text-muted">
+                  <i class="bi bi-stack me-1"></i><strong>Bandes :</strong> {{ r.bandes }} ·
+                  <i class="bi bi-arrow-left-right ms-1 me-1"></i><strong>Plage :</strong> {{ r.plage }}
+                </small>
+                {% if r.get('note') %}
+                <div class="mt-1">
+                  <small class="text-info"><i class="bi bi-info-circle me-1"></i>{{ r.note }}</small>
+                </div>
+                {% endif %}
+              </div>
+              <div class="text-end">
+                {% if has_val %}
+                <div class="val-display text-{{ inter.couleur if inter.couleur != 'orange' else 'warning' }}">
+                  {% if r.nom == 'BAI' %}{{ "%.2f"|format(r.valeur) }}
+                  {% else %}{{ "%.4f"|format(r.valeur) }}{% endif %}
+                </div>
+                {% else %}
+                <span class="text-muted fst-italic">Non calculé</span>
+                {% if r.nom == 'dNBR' %}
+                <div><small class="text-muted">Fournissez NBR post-feu</small></div>
+                {% endif %}
+                {% endif %}
+              </div>
+            </div>
+
+            {% if has_val and inter %}
+            <hr class="my-2">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-{{ inter.icone }} fs-5 text-{{ inter.couleur if inter.couleur != 'orange' else 'warning' }}"></i>
+                <span class="fw-semibold text-{{ inter.couleur if inter.couleur != 'orange' else 'warning' }}">{{ inter.classe }}</span>
+              </div>
+              {% if r.nom == 'dNBR' and inter.get('severite') %}
+              <span class="badge bg-{{ r.badge_color }} fs-6">Sévérité : {{ inter.severite }}</span>
+              {% endif %}
+              {% if r.nom == 'NBR' %}
+              {% set pct = ((r.valeur + 1) / 2 * 100)|round(0)|int %}
+              <div style="width:200px">
+                <div style="height:10px;border-radius:5px;background:#e9ecef;overflow:hidden">
+                  <div style="width:{{ [0,[pct,100]|min]|max }}%;height:100%;background:#e74c3c;border-radius:5px"></div>
+                </div>
+                <div class="d-flex justify-content-between" style="font-size:.7rem;color:#6c757d">
+                  <span>Brûlé −1</span><span>+1 Sain</span>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+
+            {% if r.nom == 'dNBR' %}
+            <div class="mt-3">
+              <p class="small fw-bold text-muted mb-1 text-uppercase" style="font-size:.72rem">Classification USGS complète</p>
+              <div class="table-responsive">
+                <table class="table table-sm mb-0" style="font-size:.8rem">
+                  <tbody>
+                    {% for low, high, label, cls in [
+                      ('','−0.10','Repousse active','success'),
+                      ('−0.10','0.10','Non brûlé','info'),
+                      ('0.10','0.27','Faible sévérité','warning'),
+                      ('0.27','0.44','Sévérité modérée','warning'),
+                      ('0.44','0.66','Haute sévérité','danger'),
+                      ('0.66','','Très haute sévérité','danger'),
+                    ] %}
+                    <tr {% if inter.classe == label %}class="table-{{ cls }} fw-bold"{% endif %}>
+                      <td class="text-muted" style="width:80px">{{ low }}…{{ high }}</td>
+                      <td>
+                        <i class="bi bi-circle-fill text-{{ cls }} me-1" style="font-size:.6rem"></i>
+                        {{ label }}
+                        {% if inter.classe == label %}<i class="bi bi-arrow-left text-{{ cls }} ms-1"></i>{% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endif %}
+
+            {% elif r.nom == 'dNBR' and not has_val %}
+            <div class="alert alert-secondary py-2 mt-2 small mb-0">
+              <i class="bi bi-info-circle me-1"></i>
+              Fournissez un NBR post-feu pour calculer la sévérité de brûlure.
+            </div>
+            {% endif %}
+
+            <p class="text-muted small mt-2 mb-0">
+              <i class="bi bi-lightbulb me-1"></i>{{ r.usage }}
+            </p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="alert alert-light border mt-4" style="font-size:.84rem">
+      <i class="bi bi-info-circle text-primary me-2"></i>
+      <strong>Valeurs utilisées :</strong>
+      NIR = <code>{{ valeurs.nir }}</code> ·
+      SWIR = <code>{{ valeurs.swir }}</code> ·
+      Red = <code>{{ valeurs.red }}</code>
+      {% if valeurs.nbr_pre %}· NBR pré = <code>{{ valeurs.nbr_pre }}</code>{% endif %}
+      {% if valeurs.nbr_post %}· NBR post = <code>{{ valeurs.nbr_post }}</code>{% endif %}
+    </div>
+
+    {# ── ÉTAT VIDE ── #}
+    {% else %}
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-fire text-danger" style="font-size:3.5rem"></i>
+        <h5 class="mt-3 text-muted">Calculez les indices feux de brousse</h5>
+        <p class="text-muted small mb-4">
+          Saisie manuelle de réflectances ou traitement d'une image satellite GeoTIFF.
+        </p>
+        <div class="row g-2 mt-2 text-start" style="max-width:600px;margin:auto">
+          {% for label, formula, desc, color in [
+            ('NBR','(NIR − SWIR) / (NIR + SWIR)','Détection zones brûlées','warning'),
+            ('dNBR','NBR_avant − NBR_après','Sévérité USGS en 6 classes','danger'),
+            ('BAI','1 / ((0.1−Red)² + (0.06−NIR)²)','Précision foyers actifs','danger'),
+          ] %}
+          <div class="col-12">
+            <div class="card border-0 bg-light">
+              <div class="card-body p-2">
+                <span class="badge bg-{{ color }} me-2">{{ label }}</span>
+                <div class="formula-box mt-1" style="font-size:.78rem">{{ formula }}</div>
+                <small class="text-muted">{{ desc }}</small>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+  <!-- /col droite -->
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Spinners ──
+document.getElementById('form-feux').addEventListener('submit', function () {
+  const btn = document.getElementById('btn-calc');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Calcul en cours…';
+  btn.disabled = true;
+});
+document.getElementById('form-raster-feux').addEventListener('submit', function () {
+  const btn = document.getElementById('btn-raster-feux');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement image…';
+  btn.disabled = true;
+});
+
+// ── Afficher/Masquer section dNBR ──
+function toggleDnbrSection() {
+  const checked = document.getElementById('chk_dNBR_rf') &&
+                  document.getElementById('chk_dNBR_rf').checked;
+  const section = document.getElementById('dnbr-section');
+  if (section) section.style.display = checked ? 'block' : 'none';
+}
+toggleDnbrSection();
+
+// ── Préréglages satellites (feux) ──
+const PRESETS_FEUX = {
+  's2':  { nir: 1, swir: 1, red: 1 },
+  'l89': { nir: 5, swir: 7, red: 4 },
+  'l57': { nir: 4, swir: 7, red: 3 },
+};
+
+function setPresetFeux(el, key) {
+  const p = PRESETS_FEUX[key];
+  if (!p) return;
+  const fields = {
+    nir: ['f_nir_bande','f_pre_nir_bande','f_post_nir_bande'],
+    swir: ['f_swir_bande','f_pre_swir_bande','f_post_swir_bande'],
+    red: ['f_red_bande'],
+  };
+  for (const [band, ids] of Object.entries(fields)) {
+    ids.forEach(id => {
+      const el2 = document.getElementById(id);
+      if (el2) el2.value = p[band];
+    });
+  }
+  document.querySelectorAll('.preset-btn-feux').forEach(b => {
+    b.classList.remove('bg-danger','text-white','border-danger');
+  });
+  el.classList.add('bg-danger','text-white','border-danger');
+}
+</script>
+{% endblock %}

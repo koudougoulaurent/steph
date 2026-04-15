@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Campagnes de collecte — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-clipboard2-data me-2 text-success"></i>Campagnes de Collecte</h4>
+        <small class="text-muted">Missions terrain planifiées et réalisées</small>
+      </div>
+      <a href="{{ url_for('collecte.campagne_nouvelle') }}" class="btn btn-success btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>Nouvelle campagne
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Onglets statut -->
+<ul class="nav nav-pills mb-3 gap-1">
+  {% for s,lbl,cls in [('','Toutes','secondary'),('planifie','Planifiées','primary'),('en_cours','En cours','warning'),('termine','Terminées','success')] %}
+  <li class="nav-item">
+    <a class="nav-link py-1 px-3 {% if statut_filtre == s or (not statut_filtre and not s) %}active bg-{{ cls }}{% else %}text-{{ cls }} border{% endif %}"
+       href="{{ url_for('collecte.campagnes_list') }}{% if s %}?statut={{ s }}{% endif %}">
+      {{ lbl }}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+
+<div class="row g-3">
+  {% for c in campagnes.items %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header d-flex align-items-center gap-2
+                  {{ 'bg-warning' if c.statut == 'en_cours' else 'bg-light' }}">
+        <span class="badge bg-{{ 'success' if c.statut == 'termine' else 'warning text-dark' if c.statut == 'en_cours' else 'primary' }}">
+          {{ c.statut }}
+        </span>
+        <small class="text-muted ms-auto">{{ c.reference }}</small>
+      </div>
+      <div class="card-body">
+        <h6 class="fw-bold mb-1">{{ c.nom }}</h6>
+        <p class="text-muted small mb-2">{{ (c.description or '—')[:80] }}</p>
+        <div class="row text-center">
+          <div class="col-4">
+            <div class="fw-bold text-primary">{{ c.date_debut.strftime('%d/%m') if c.date_debut else '—' }}</div>
+            <small class="text-muted">Début</small>
+          </div>
+          <div class="col-4">
+            <div class="fw-bold text-secondary">{{ c.date_fin_prevue.strftime('%d/%m') if c.date_fin_prevue else '—' }}</div>
+            <small class="text-muted">Fin prévue</small>
+          </div>
+          <div class="col-4">
+            <div class="fw-bold text-success">{{ c.count_observations }}</div>
+            <small class="text-muted">Obs.</small>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-white border-top-0">
+        <a href="{{ url_for('collecte.campagne_detail', id=c.id) }}"
+           class="btn btn-sm btn-outline-primary w-100">
+          <i class="bi bi-eye me-1"></i>Voir détail
+        </a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-clipboard2 fs-1 d-block mb-2"></i>
+      Aucune campagne trouvée. <a href="{{ url_for('collecte.campagne_nouvelle') }}">En créer une</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

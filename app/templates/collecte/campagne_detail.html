@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}{{ campagne.nom }} — VégéSuivi Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+  #mini-map { height: 280px; border-radius: 8px; border: 1px solid #dee2e6; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold">
+          <i class="bi bi-clipboard2-data me-2 text-success"></i>{{ campagne.nom }}
+        </h4>
+        <small class="text-muted">{{ campagne.reference }} — Campagne de collecte terrain</small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.campagnes_list') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left me-1"></i>Retour
+        </a>
+        <a href="{{ url_for('rapports.nouveau') }}?date_debut={{ campagne.date_debut.strftime('%Y-%m-%d') if campagne.date_debut else '' }}&date_fin={{ campagne.date_fin_reelle.strftime('%Y-%m-%d') if campagne.date_fin_reelle else (campagne.date_fin_prevue.strftime('%Y-%m-%d') if campagne.date_fin_prevue else '') }}&titre=Rapport — {{ campagne.nom }}"
+           class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-file-earmark-plus me-1"></i>Créer un rapport
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Info campagne -->
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header fw-bold bg-light">
+        <i class="bi bi-info-circle me-2"></i>Informations
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-5 text-muted">Statut</dt>
+          <dd class="col-sm-7">
+            <span class="badge bg-{{ 'success' if campagne.statut == 'termine' else 'warning text-dark' if campagne.statut == 'en_cours' else 'secondary' if campagne.statut == 'annule' else 'primary' }}">
+              {{ campagne.statut.replace('_',' ').title() }}
+            </span>
+          </dd>
+          <dt class="col-sm-5 text-muted">Zone</dt>
+          <dd class="col-sm-7">{{ campagne.zone or '—' }}</dd>
+          <dt class="col-sm-5 text-muted">Début</dt>
+          <dd class="col-sm-7">{{ campagne.date_debut.strftime('%d/%m/%Y') if campagne.date_debut else '—' }}</dd>
+          <dt class="col-sm-5 text-muted">Fin prévue</dt>
+          <dd class="col-sm-7">{{ campagne.date_fin_prevue.strftime('%d/%m/%Y') if campagne.date_fin_prevue else '—' }}</dd>
+          <dt class="col-sm-5 text-muted">Fin réelle</dt>
+          <dd class="col-sm-7">{{ campagne.date_fin_reelle.strftime('%d/%m/%Y') if campagne.date_fin_reelle else '—' }}</dd>
+          <dt class="col-sm-5 text-muted">Chef mission</dt>
+          <dd class="col-sm-7">{{ campagne.chef_mission or '—' }}</dd>
+          <dt class="col-sm-5 text-muted">Équipe</dt>
+          <dd class="col-sm-7">{{ campagne.equipe or '—' }}</dd>
+          <dt class="col-sm-5 text-muted">Observations</dt>
+          <dd class="col-sm-7"><span class="badge bg-success fs-6">{{ campagne.count_observations }}</span></dd>
+        </dl>
+      </div>
+    </div>
+
+    <!-- Changer le statut -->
+    <div class="card shadow-sm mt-3">
+      <div class="card-header fw-bold bg-light">
+        <i class="bi bi-arrow-repeat me-2"></i>Changer le statut
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('collecte.campagne_changer_statut', id=campagne.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="d-flex gap-2 flex-wrap">
+            {% set statuts = [('planifie','primary','Planifiée'),('en_cours','warning','En cours'),('termine','success','Terminée'),('annule','secondary','Annulée')] %}
+            {% for val, cls, label in statuts %}
+            <button type="submit" name="statut" value="{{ val }}"
+                    class="btn btn-sm btn-{{ 'outline-' + cls if campagne.statut != val else cls }}
+                           {% if campagne.statut == val %}disabled{% endif %}"
+                    {% if campagne.statut == val %}disabled{% endif %}>
+              {{ label }}
+            </button>
+            {% endfor %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Objectifs & description -->
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-bold bg-light"><i class="bi bi-list-task me-2"></i>Objectifs</div>
+      <div class="card-body">
+        <p class="mb-0">{{ campagne.objectifs or 'Non renseigné.' }}</p>
+      </div>
+    </div>
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-bold bg-light"><i class="bi bi-file-text me-2"></i>Rapport de mission</div>
+      <div class="card-body">
+        <p class="mb-0">{{ campagne.rapport_mission or 'Aucun rapport rédigé pour le moment.' }}</p>
+      </div>
+    </div>
+
+    <!-- Mini-carte des observations -->
+    <div class="card shadow-sm">
+      <div class="card-header fw-bold bg-light d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-map me-2"></i>Carte des observations</span>
+        <a href="{{ url_for('cartographie.index') }}" class="btn btn-sm btn-outline-success" target="_blank">
+          <i class="bi bi-arrows-fullscreen me-1"></i>Plein écran
+        </a>
+      </div>
+      <div class="card-body p-2">
+        <div id="mini-map"></div>
+        <p class="text-muted small mt-2 mb-0 text-center" id="mini-map-info">Chargement des observations…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Observations liées -->
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-header fw-bold bg-light d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-eye me-2"></i>Observations collectées</span>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('collecte.observation_nouvelle') }}?campagne_id={{ campagne.id }}"
+             class="btn btn-sm btn-primary">
+            <i class="bi bi-plus me-1"></i>Ajouter
+          </a>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Réf.</th><th>Date</th><th>Catégorie</th><th>Titre</th>
+              <th>Zone</th><th>Alerte</th><th>Validée</th><th>Carte</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in campagne.observations %}
+            <tr>
+              <td><small class="text-muted">{{ o.reference }}</small></td>
+              <td><small>{{ o.date_observation.strftime('%d/%m/%Y') }}</small></td>
+              <td>
+                <span class="badge bg-{{ 'success' if o.categorie == 'vegetation' else 'info' if o.categorie == 'faune' else 'secondary' }}">
+                  {{ o.categorie }}
+                </span>
+              </td>
+              <td><small>{{ (o.titre or o.description[:40] or '')[:45] if (o.titre or o.description) else '—' }}</small></td>
+              <td><small>{{ o.zone or '—' }}</small></td>
+              <td>
+                {% if o.niveau_alerte %}
+                <span class="badge bg-{{ 'danger' if o.niveau_alerte == 'Urgence' else 'warning text-dark' }}">
+                  {{ o.niveau_alerte }}
+                </span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <i class="bi bi-{{ 'check-circle-fill text-success' if o.validee else 'hourglass text-muted' }}"></i>
+              </td>
+              <td class="text-center">
+                {% if o.latitude and o.longitude %}
+                <a href="{{ url_for('cartographie.index') }}?lat={{ o.latitude }}&lng={{ o.longitude }}&zoom=14&popup={{ o.reference|urlencode }}"
+                   class="btn btn-xs btn-outline-primary" style="font-size:.75rem;padding:1px 5px"
+                   title="Voir sur la carte" target="_blank">
+                  <i class="bi bi-map"></i>
+                </a>
+                {% else %}
+                <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center py-3 text-muted">Aucune observation liée à cette campagne.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Mini-carte des observations de la campagne
+const miniMap = L.map('mini-map', { center: [12.5, -1.5], zoom: 6 });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OSM', maxZoom: 18
+}).addTo(miniMap);
+
+const obsUrl = "{{ url_for('api.campagne_observations_geojson', id=campagne.id) }}";
+fetch(obsUrl)
+  .then(r => r.json())
+  .then(data => {
+    const info = document.getElementById('mini-map-info');
+    const n = data.features.length;
+    info.textContent = n + ' observation' + (n > 1 ? 's' : '') + ' géolocalisée' + (n > 1 ? 's' : '');
+    if (n === 0) { info.textContent = 'Aucune observation géolocalisée pour cette campagne.'; return; }
+    const group = L.layerGroup();
+    const bounds = [];
+    data.features.forEach(f => {
+      const [lng, lat] = f.geometry.coordinates;
+      bounds.push([lat, lng]);
+      const p = f.properties;
+      const color = p.color || '#2980b9';
+      const marker = L.circleMarker([lat, lng], {
+        radius: 8, fillColor: color, color: '#fff',
+        weight: 1.5, opacity: 1, fillOpacity: 0.85
+      });
+      marker.bindPopup(
+        '<b>' + (p.titre || p.reference) + '</b><br>' +
+        '<small class="text-muted">' + p.categorie + ' — ' + p.date + '</small>' +
+        (p.niveau_alerte ? '<br><span class="badge bg-warning text-dark">' + p.niveau_alerte + '</span>' : '')
+      );
+      group.addLayer(marker);
+    });
+    group.addTo(miniMap);
+    if (bounds.length > 0) {
+      miniMap.fitBounds(bounds, { padding: [20, 20], maxZoom: 13 });
+    }
+  })
+  .catch(() => {
+    document.getElementById('mini-map-info').textContent = 'Impossible de charger les observations.';
+  });
+</script>
+{% endblock %}

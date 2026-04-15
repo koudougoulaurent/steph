@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+{% block title %}{{ couche.nom }} — Données Terrain{% endblock %}
+
+{% block extra_css %}
+<style>
+  #map-terrain { height: 480px; border-radius: 10px; border: 1px solid #dee2e6; }
+
+  .attr-table-wrap { max-height: 260px; overflow-y: auto; }
+  .attr-table th { position: sticky; top: 0; background: #343a40; }
+
+  .meta-row { display: flex; gap: 8px; align-items: baseline;
+              padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size:.9rem; }
+  .meta-row:last-child { border-bottom: none; }
+  .meta-label { min-width: 160px; color: #6c757d; font-size: .82rem; font-weight: 600; }
+
+  .info-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #f8f9fa; border: 1px solid #dee2e6;
+    border-radius: 10px; font-size: .9rem;
+  }
+  .info-badge .val { font-weight: 800; font-size: 1.3rem; color: #0d6efd; }
+
+  .geojson-note {
+    font-size: .78rem; padding: 6px 12px; border-radius: 6px;
+    background: #fff8e1; border: 1px solid #ffe082; color: #795548;
+  }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h4 class="mb-0 fw-bold">
+          <i class="bi {{ couche.icone_geometrie or 'bi-geo' }} me-2 text-primary"></i>
+          {{ couche.nom }}
+        </h4>
+        <small class="text-muted">
+          {{ couche.reference }} ·
+          <span class="badge bg-{{ couche.couleur_badge() }} ms-1">{{ couche.type_geometrie }}</span>
+        </small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('donnees_terrain.telecharger', id=couche.id) }}"
+           class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-download me-1"></i>Télécharger ZIP
+        </a>
+        <a href="{{ url_for('donnees_terrain.geojson', id=couche.id) }}"
+           target="_blank" class="btn btn-sm btn-outline-info">
+          <i class="bi bi-braces me-1"></i>GeoJSON (aperçu)
+        </a>
+        <a href="{{ url_for('donnees_terrain.index') }}"
+           class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Retour
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ═══ Colonne gauche — métadonnées ═══ -->
+  <div class="col-12 col-xl-4">
+
+    <!-- Indicateurs clés -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-3 justify-content-around">
+          <div class="info-badge">
+            <i class="bi bi-hash text-muted"></i>
+            <div>
+              <div class="val">{{ '{:,}'.format(couche.nombre_entites) }}</div>
+              <div class="text-muted" style="font-size:.72rem">entités</div>
+            </div>
+          </div>
+          <div class="info-badge">
+            <i class="bi bi-table text-muted"></i>
+            <div>
+              <div class="val">{{ couche.attributs|length }}</div>
+              <div class="text-muted" style="font-size:.72rem">attributs</div>
+            </div>
+          </div>
+          <div class="info-badge">
+            <i class="bi bi-hdd text-muted"></i>
+            <div>
+              <div class="val" style="font-size:1rem;margin-top:4px">{{ couche.taille_lisible }}</div>
+              <div class="text-muted" style="font-size:.72rem">fichiers</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Métadonnées détaillées -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold">
+        <i class="bi bi-info-circle me-2 text-primary"></i>Informations
+      </div>
+      <div class="card-body py-2">
+        <div class="meta-row">
+          <span class="meta-label">Référence</span>
+          <code>{{ couche.reference }}</code>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Type géométrie</span>
+          <span class="badge bg-{{ couche.couleur_badge() }}">{{ couche.type_geometrie }}</span>
+        </div>
+        {% if couche.srid %}
+        <div class="meta-row">
+          <span class="meta-label">Projection</span>
+          <span>{{ couche.srid_label }}</span>
+        </div>
+        {% endif %}
+        {% if couche.source %}
+        <div class="meta-row">
+          <span class="meta-label">Source</span>
+          <span>{{ couche.source }}</span>
+        </div>
+        {% endif %}
+        {% if couche.date_acquisition %}
+        <div class="meta-row">
+          <span class="meta-label">Acquisition terrain</span>
+          <span>{{ couche.date_acquisition.strftime('%d/%m/%Y') }}</span>
+        </div>
+        {% endif %}
+        <div class="meta-row">
+          <span class="meta-label">Importé le</span>
+          <span>{{ couche.date_upload.strftime('%d/%m/%Y à %H:%M') if couche.date_upload else '—' }}</span>
+        </div>
+        {% if couche.uploader %}
+        <div class="meta-row">
+          <span class="meta-label">Importé par</span>
+          <span>{{ couche.uploader.nom }}</span>
+        </div>
+        {% endif %}
+        {% if couche.bbox %}
+        <div class="meta-row">
+          <span class="meta-label">Emprise (bbox)</span>
+          <span style="font-size:.78rem;font-family:monospace">
+            {{ "%.4f"|format(couche.bbox[0]) }},{{ "%.4f"|format(couche.bbox[1]) }}<br>
+            {{ "%.4f"|format(couche.bbox[2]) }},{{ "%.4f"|format(couche.bbox[3]) }}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if couche.description %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold">
+        <i class="bi bi-chat-text me-2 text-muted"></i>Description
+      </div>
+      <div class="card-body small text-muted">{{ couche.description }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Table des attributs -->
+    {% if couche.attributs %}
+    <div class="card shadow-sm">
+      <div class="card-header bg-white fw-bold d-flex justify-content-between">
+        <span><i class="bi bi-table me-2 text-primary"></i>Attributs</span>
+        <span class="badge bg-secondary">{{ couche.attributs|length }}</span>
+      </div>
+      <div class="attr-table-wrap">
+        <table class="table table-sm mb-0" style="font-size:.82rem">
+          <thead class="table-dark">
+            <tr>
+              <th>Champ</th>
+              <th>Type</th>
+              <th>Long.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in couche.attributs %}
+            <tr>
+              <td><code>{{ a.nom }}</code></td>
+              <td>
+                <span class="badge bg-light text-dark border" style="font-size:.7rem">
+                  {{ a.type }}
+                </span>
+              </td>
+              <td class="text-muted">{{ a.longueur }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+  <!-- /col gauche -->
+
+  <!-- ═══ Colonne droite — carte ═══ -->
+  <div class="col-12 col-xl-8">
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-bold">
+          <i class="bi bi-map me-2 text-success"></i>Aperçu cartographique
+        </span>
+        {% if couche.geojson_apercu %}
+        <div class="d-flex align-items-center gap-2">
+          <span id="features-count" class="badge bg-success">
+            — entités chargées
+          </span>
+          <button class="btn btn-sm btn-outline-secondary" onclick="recentrerCarte()">
+            <i class="bi bi-arrows-fullscreen me-1"></i>Recentrer
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card-body p-0">
+        <div id="map-terrain"></div>
+      </div>
+
+      {% if couche.nombre_entites > 500 %}
+      <div class="card-footer bg-white">
+        <div class="geojson-note">
+          <i class="bi bi-info-circle me-1"></i>
+          Aperçu limité à <strong>500 entités</strong> sur {{ '{:,}'.format(couche.nombre_entites) }} totales.
+          <a href="{{ url_for('donnees_terrain.geojson', id=couche.id, complet=1) }}"
+             class="ms-1" target="_blank">
+            <i class="bi bi-download me-1"></i>Télécharger le GeoJSON complet
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Actions danger -->
+    <div class="card shadow-sm mt-3 border-danger border-opacity-25">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <strong class="text-danger">Zone de suppression</strong>
+          <p class="text-muted small mb-0">
+            La couche et tous ses fichiers seront supprimés définitivement.
+          </p>
+        </div>
+        <form method="POST"
+              action="{{ url_for('donnees_terrain.supprimer', id=couche.id) }}"
+              onsubmit="return confirm('Supprimer définitivement la couche « {{ couche.nom }} » ?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Supprimer la couche
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+  <!-- /col droite -->
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Initialisation Leaflet ────────────────────────────────────────────────
+const map = L.map('map-terrain', { zoomControl: true });
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 19,
+}).addTo(map);
+
+// Couleur selon type géométrie
+const GEOM_TYPE = '{{ couche.type_geometrie or "" }}';
+const COLOR_MAP = {
+  'Polygone':  '#198754',
+  'PolygoneZ': '#198754',
+  'Polyligne': '#0dcaf0',
+  'PolyligneZ':'#0dcaf0',
+  'Point':     '#0d6efd',
+  'PointZ':    '#0d6efd',
+};
+const layerColor = COLOR_MAP[GEOM_TYPE] || '#6c757d';
+
+function styleFeature(feature) {
+  return {
+    color:    layerColor,
+    fillColor: layerColor,
+    weight:   GEOM_TYPE.includes('oint') ? 2 : 1.5,
+    opacity:  0.85,
+    fillOpacity: 0.35,
+    radius:   5,
+  };
+}
+
+function onEachFeature(feature, layer) {
+  if (feature.properties) {
+    const props = feature.properties;
+    const rows = Object.entries(props)
+      .filter(([k, v]) => v !== null && v !== '')
+      .slice(0, 10)
+      .map(([k, v]) => `<tr><td class="text-muted pe-2"><small>${k}</small></td>
+                           <td><small><strong>${v}</strong></small></td></tr>`)
+      .join('');
+    if (rows) {
+      layer.bindPopup(`<table style="min-width:180px">${rows}</table>`, {maxWidth: 280});
+    }
+  }
+}
+
+let geojsonLayer = null;
+
+// Chargement GeoJSON depuis l'API
+fetch('{{ url_for("donnees_terrain.geojson", id=couche.id) }}')
+  .then(r => r.json())
+  .then(data => {
+    const n = data.features ? data.features.length : 0;
+    document.getElementById('features-count').textContent = `${n} entités chargées`;
+
+    if (!data.features || data.features.length === 0) {
+      map.setView([14.5, -2.0], 5);  // Vue Sahel par défaut
+      return;
+    }
+
+    // Déterminer si Point ou non
+    const isPoint = data.features[0].geometry &&
+                    data.features[0].geometry.type &&
+                    data.features[0].geometry.type.includes('Point');
+
+    if (isPoint) {
+      geojsonLayer = L.geoJSON(data, {
+        onEachFeature: onEachFeature,
+        pointToLayer: (feature, latlng) =>
+          L.circleMarker(latlng, styleFeature(feature)),
+      }).addTo(map);
+    } else {
+      geojsonLayer = L.geoJSON(data, {
+        style: styleFeature,
+        onEachFeature: onEachFeature,
+      }).addTo(map);
+    }
+
+    // Zoom sur l'emprise
+    try {
+      map.fitBounds(geojsonLayer.getBounds(), { padding: [30, 30] });
+    } catch(e) {
+      map.setView([14.5, -2.0], 5);
+    }
+  })
+  .catch(() => {
+    map.setView([14.5, -2.0], 5);
+  });
+
+function recentrerCarte() {
+  if (geojsonLayer) {
+    try { map.fitBounds(geojsonLayer.getBounds(), { padding: [30, 30] }); }
+    catch(e) {}
+  }
+}
+</script>
+{% endblock %}

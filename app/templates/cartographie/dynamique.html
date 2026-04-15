@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Dynamique d'occupation des terres — VégéSuivi Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+  .map-compare { height: 50vh; border-radius: 8px; }
+  .compare-wrapper { position: relative; }
+  .year-badge { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+                background: rgba(26,82,118,0.9); color: white; padding: 4px 14px;
+                border-radius: 20px; font-weight: 700; z-index: 1000; font-size: 1.1rem; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-film me-2 text-success-custom"></i>Dynamique d'occupation des terres</h4>
+    <small class="text-muted">Comparaison temporelle 1990–2020</small>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Sélecteurs d'années -->
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row align-items-center g-3">
+      <div class="col-auto">
+        <label class="form-label fw-semibold mb-0">Année A :</label>
+        <select class="form-select form-select-sm d-inline-block ms-2" id="anneeA" style="width:auto" onchange="refreshMaps()">
+          {% for a in annees %}
+            <option value="{{ a }}" {% if loop.first %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <i class="bi bi-arrow-left-right text-success fs-4"></i>
+      </div>
+      <div class="col-auto">
+        <label class="form-label fw-semibold mb-0">Année B :</label>
+        <select class="form-select form-select-sm d-inline-block ms-2" id="anneeB" style="width:auto" onchange="refreshMaps()">
+          {% for a in annees|reverse %}
+            <option value="{{ a }}" {% if loop.first %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto ms-auto">
+        <span class="text-muted small">
+          <i class="bi bi-info-circle me-1"></i>Cliquez sur un point pour voir les détails
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cartes côte à côte -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-6">
+    <div class="compare-wrapper">
+      <div class="year-badge" id="badgeA">1990</div>
+      <div id="mapA" class="map-compare shadow-sm"></div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="compare-wrapper">
+      <div class="year-badge" id="badgeB">2020</div>
+      <div id="mapB" class="map-compare shadow-sm"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tableau comparatif -->
+<div class="card shadow-sm">
+  <div class="card-header bg-white border-bottom">
+    <h6 class="mb-0 fw-bold"><i class="bi bi-table me-2"></i>Tableau comparatif des superficies</h6>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover" id="tableCompar">
+        <thead class="table-dark">
+          <tr>
+            <th>Classe d'occupation</th>
+            <th id="thA">1990</th>
+            <th id="thB">2020</th>
+            <th>Variation (ha)</th>
+            <th>Taux (%)</th>
+            <th>Tendance</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyCompar">
+          <tr><td colspan="6" class="text-center py-3 text-muted">
+            <div class="spinner-border spinner-border-sm text-success me-2"></div>Chargement...
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const mapA = L.map('mapA', { center: [12.5, -1.5], zoom: 6, zoomControl: true });
+const mapB = L.map('mapB', { center: [12.5, -1.5], zoom: 6, zoomControl: false });
+
+[mapA, mapB].forEach(m => {
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OSM', maxZoom: 18
+  }).addTo(m);
+});
+
+// Synchroniser les cartes
+mapA.on('move', () => mapB.setView(mapA.getCenter(), mapA.getZoom(), {animate: false}));
+
+let layerA = null, layerB = null;
+
+function getClassColor(classe) {
+  const colors = {
+    'Forêt galerie': '#1a5c1a', 'Forêt sèche arbustive': '#2ecc71',
+    'Savane arborée / arbustive': '#f39c12', 'Savane herbeuse': '#f7dc6f',
+    'Zone agricole / cultures': '#e67e22', 'Zone humide / marécage': '#2980b9',
+    "Plans d'eau / cours d'eau": '#3498db', 'Zone urbaine / bâti': '#95a5a6',
+    'Sol nu / dégradé / latérite': '#c0392b', 'Reboisement / plantation': '#27ae60',
+  };
+  return colors[classe] || '#7f8c8d';
+}
+
+function loadMapLayer(map, annee, layerRef) {
+  if (layerRef) { layerRef.remove(); }
+  return fetch(`/api/v1/couverture/{{ '' }}`.replace('couverture/', 'couverture/') + '').then(() => {
+    return fetch(`/cartographie/api/couverture/${annee}`)
+      .then(r => r.json())
+      .then(data => {
+        const grp = L.layerGroup();
+        data.features.forEach(f => {
+          const [lng, lat] = f.geometry.coordinates;
+          const p = f.properties;
+          const color = p.couleur || getClassColor(p.classe);
+          L.circleMarker([lat, lng], {
+            radius: 8, fillColor: color, color: '#fff',
+            weight: 1.5, fillOpacity: 0.85
+          }).bindPopup(`
+            <b>${p.classe || '–'}</b><br>
+            <small>Zone: ${p.zone || '–'}</small><br>
+            <small>Superficie: <b>${p.superficie_ha} ha</b></small>
+          `).addTo(grp);
+        });
+        grp.addTo(map);
+        return grp;
+      });
+  });
+}
+
+function loadComparTable(anneeA, anneeB) {
+  fetch('/api/v1/couverture/resume')
+    .then(r => r.json())
+    .then(data => {
+      const tbody = document.getElementById('tbodyCompar');
+      document.getElementById('thA').textContent = anneeA;
+      document.getElementById('thB').textContent = anneeB;
+      const A = data[anneeA] || {};
+      const B = data[anneeB] || {};
+      const allClasses = [...new Set([...Object.keys(A), ...Object.keys(B)])];
+
+      if (!allClasses.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Aucune donnée disponible</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = allClasses.map(c => {
+        const va = A[c] || 0, vb = B[c] || 0;
+        const diff = (vb - va).toFixed(1);
+        const taux = va > 0 ? ((vb - va) / va * 100).toFixed(1) : 'N/A';
+        const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '–';
+        const cls = diff > 0 ? 'text-success' : diff < 0 ? 'text-danger' : 'text-muted';
+        return `<tr>
+          <td><small>${c}</small></td>
+          <td class="text-end">${va.toLocaleString()}</td>
+          <td class="text-end">${vb.toLocaleString()}</td>
+          <td class="text-end ${cls}">${(+diff).toLocaleString()}</td>
+          <td class="text-end ${cls}">${taux}%</td>
+          <td class="text-center fs-5 ${cls}">${arrow}</td>
+        </tr>`;
+      }).join('');
+    });
+}
+
+async function refreshMaps() {
+  const anneeA = document.getElementById('anneeA').value;
+  const anneeB = document.getElementById('anneeB').value;
+  document.getElementById('badgeA').textContent = anneeA;
+  document.getElementById('badgeB').textContent = anneeB;
+  if (layerA) layerA.remove();
+  if (layerB) layerB.remove();
+  layerA = await loadMapLayer(mapA, anneeA, null);
+  layerB = await loadMapLayer(mapB, anneeB, null);
+  loadComparTable(anneeA, anneeB);
+}
+
+document.addEventListener('DOMContentLoaded', refreshMaps);
+</script>
+{% endblock %}

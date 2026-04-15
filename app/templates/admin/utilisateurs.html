@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Gestion des utilisateurs — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-people me-2 text-primary"></i>Utilisateurs</h4>
+        <small class="text-muted">Gestion des comptes et des droits d'accès</small>
+      </div>
+      <a href="{{ url_for('admin.utilisateur_nouveau') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-person-plus me-1"></i>Nouvel utilisateur
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Nom complet</th><th>Email</th><th>Rôle</th><th>Structure</th>
+            <th>Dernière connexion</th><th>Statut</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in utilisateurs %}
+          <tr>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div class="avatar-sm bg-primary text-white d-flex align-items-center justify-content-center rounded-circle"
+                     style="width:32px;height:32px;font-size:.8rem;font-weight:700">
+                  {{ u.nom[0]|upper if u.nom else '?' }}
+                </div>
+                <span class="fw-semibold">{{ u.nom }}</span>
+              </div>
+            </td>
+            <td><small>{{ u.email }}</small></td>
+            <td>
+              <span class="badge bg-{{ 'danger' if u.role == 'admin' else 'warning text-dark' if u.role == 'superviseur' else 'primary' if u.role == 'agent' else 'secondary' }}">
+                {{ u.role }}
+              </span>
+            </td>
+            <td><small>{{ u.structure or '—' }}</small></td>
+            <td><small>{{ u.last_login.strftime('%d/%m/%Y %H:%M') if u.last_login else 'Jamais' }}</small></td>
+            <td>
+              <span class="badge bg-{{ 'success' if u.actif else 'secondary' }}">
+                {{ 'Actif' if u.actif else 'Inactif' }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('admin.utilisateur_modifier', id=u.id) }}"
+                   class="btn btn-xs btn-outline-primary py-0 px-2" title="Modifier">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                {% if u.id != current_user.id %}
+                <form method="POST" action="{{ url_for('admin.utilisateur_toggle', id=u.id) }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit"
+                          class="btn btn-xs btn-outline-{{ 'danger' if u.actif else 'success' }} py-0 px-2"
+                          title="{{ 'Désactiver' if u.actif else 'Activer' }}"
+                          onclick="return confirm('Confirmer cette action ?')">
+                    <i class="bi bi-{{ 'person-dash' if u.actif else 'person-check' }}"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center py-4 text-muted">Aucun utilisateur.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

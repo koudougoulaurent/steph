@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('collecte.braconnage_list') }}" class="text-decoration-none">Braconnage</a></li>
+            <li class="breadcrumb-item active">{{ ind.reference }}</li>
+          </ol>
+        </nav>
+        <h4 class="mb-0 fw-bold mt-1">
+          <i class="bi bi-exclamation-triangle me-2 text-danger"></i>{{ ind.reference }}
+          <span class="badge ms-2 bg-{{ 'success' if ind.statut == 'traite' else 'warning text-dark' if ind.statut == 'en_cours' else 'danger' if ind.statut == 'nouveau' else 'secondary' }}">
+            {{ ind.statut }}
+          </span>
+        </h4>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.braconnage_export_pdf') }}" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        </a>
+        <a href="{{ url_for('collecte.braconnage_list') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Retour
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ── Fiche principale ── -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-danger text-white">
+        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informations de l'indicateur</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Référence</label>
+            <div class="fw-bold">{{ ind.reference }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Date de constat</label>
+            <div>{{ ind.date_constat.strftime('%d/%m/%Y') if ind.date_constat else '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Type d'indicateur</label>
+            <div class="fw-semibold">{{ ind.type_indicateur or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Niveau de gravité</label>
+            <div>
+              <span class="badge bg-{{ 'danger' if ind.niveau_gravite in ['Critique','Grave'] else 'warning text-dark' if ind.niveau_gravite == 'Moyen' else 'success' }}">
+                {{ ind.niveau_gravite or '—' }}
+              </span>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Zone</label>
+            <div>{{ ind.zone or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Localité</label>
+            <div>{{ ind.localite or '—' }}</div>
+          </div>
+          {% if ind.especes_concernees %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Espèces concernées</label>
+            <div>{{ ind.especes_concernees }}</div>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Nombre d'indices</label>
+            <div>{{ ind.nombre_indices or 0 }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Activité récente</label>
+            <div><i class="bi bi-{{ 'check-circle-fill text-danger' if ind.activite_recente else 'x-circle text-muted' }}"></i>
+              {{ 'Oui' if ind.activite_recente else 'Non' }}
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Alerte émise</label>
+            <div><i class="bi bi-{{ 'bell-fill text-warning' if ind.alerte_emise else 'bell-slash text-muted' }}"></i>
+              {{ 'Oui' if ind.alerte_emise else 'Non' }}
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Saisies effectuées</label>
+            <div><i class="bi bi-{{ 'check-circle-fill text-success' if ind.saisies_effectuees else 'x-circle text-muted' }}"></i>
+              {{ 'Oui' if ind.saisies_effectuees else 'Non' }}
+            </div>
+          </div>
+          {% if ind.detail_saisies %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Détail des saisies</label>
+            <p class="mb-0">{{ ind.detail_saisies }}</p>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Arrestations</label>
+            <div>
+              {% if ind.arrestations %}
+              <span class="badge bg-dark fs-6">{{ ind.arrestations }}</span>
+              {% else %}0{% endif %}
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Signalé par</label>
+            <div>{{ ind.signale_par or '—' }}</div>
+          </div>
+          {% if ind.source_info %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Source d'information</label>
+            <div>{{ ind.source_info }}</div>
+          </div>
+          {% endif %}
+          {% if ind.description %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Description</label>
+            <p class="mb-0">{{ ind.description }}</p>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Coordonnées GPS</label>
+            <div>
+              {% if ind.latitude and ind.longitude %}
+                <code>{{ ind.latitude }}, {{ ind.longitude }}</code>
+              {% else %}—{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Colonne droite ── -->
+  <div class="col-lg-5 d-flex flex-column gap-4">
+
+    <!-- Changement de statut -->
+    <div class="card shadow-sm border-danger">
+      <div class="card-header bg-danger bg-opacity-10">
+        <h6 class="mb-0 text-danger"><i class="bi bi-arrow-repeat me-2"></i>Changer le statut</h6>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">Statut actuel :
+          <span class="badge bg-{{ 'success' if ind.statut == 'traite' else 'warning text-dark' if ind.statut == 'en_cours' else 'danger' if ind.statut == 'nouveau' else 'secondary' }}">
+            {{ ind.statut }}
+          </span>
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+          {% for st, label, cls in [
+              ('nouveau',   'Nouveau',    'danger'),
+              ('en_cours',  'En cours',   'warning'),
+              ('traite',    'Traité',     'success'),
+              ('archive',   'Archiver',   'secondary')
+          ] %}
+          {% if ind.statut != st %}
+          <form method="POST" action="{{ url_for('collecte.braconnage_changer_statut', id=ind.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="statut" value="{{ st }}">
+            <button class="btn btn-sm btn-{{ cls }} {% if cls == 'warning' %}text-dark{% endif %}">
+              <i class="bi bi-arrow-right-circle me-1"></i>{{ label }}
+            </button>
+          </form>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini-carte -->
+    {% if ind.latitude and ind.longitude %}
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="bi bi-map me-2"></i>Localisation</h6>
+          <a href="{{ url_for('cartographie.index') }}?lat={{ ind.latitude }}&lng={{ ind.longitude }}&zoom=13&popup={{ ind.reference|urlencode }}"
+             class="btn btn-sm btn-outline-danger" target="_blank">
+            <i class="bi bi-fullscreen me-1"></i>Plein écran
+          </a>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div id="mini-map" style="height:250px;"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Lien cartographie -->
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body text-center">
+        <p class="text-muted small mb-2">Explorer dans la cartographie</p>
+        <a href="{{ url_for('cartographie.index') }}?lat={{ ind.latitude or 12.36 }}&lng={{ ind.longitude or -1.53 }}&zoom=10"
+           class="btn btn-outline-danger btn-sm" target="_blank">
+          <i class="bi bi-map-fill me-1"></i>Ouvrir dans Cartographie
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if ind.latitude and ind.longitude %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  const lat = {{ ind.latitude }};
+  const lng = {{ ind.longitude }};
+  const map = L.map('mini-map', { zoomControl: true, scrollWheelZoom: false })
+               .setView([lat, lng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  const icon = L.divIcon({
+    html: '<i class="bi bi-exclamation-triangle-fill" style="color:#dc3545;font-size:1.3rem"></i>',
+    className: '', iconAnchor: [10, 10]
+  });
+  L.marker([lat, lng], { icon })
+   .addTo(map)
+   .bindPopup('<b>{{ ind.reference }}</b><br>{{ ind.type_indicateur or "" }}<br>Gravité: {{ ind.niveau_gravite or "" }}')
+   .openPopup();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('collecte.observations_list') }}" class="text-decoration-none">Observations terrain</a></li>
+            <li class="breadcrumb-item active">{{ obs.reference }}</li>
+          </ol>
+        </nav>
+        <h4 class="mb-0 fw-bold mt-1">
+          <i class="bi bi-eye me-2 text-primary"></i>{{ obs.reference }}
+          {% if obs.validee %}
+            <span class="badge ms-2 bg-success">Validée</span>
+          {% else %}
+            <span class="badge ms-2 bg-warning text-dark">En attente</span>
+          {% endif %}
+        </h4>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.observations_export_pdf') }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        </a>
+        <a href="{{ url_for('collecte.observations_list') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Retour
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ── Fiche principale ── -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-primary text-white">
+        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Détails de l'observation</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Référence</label>
+            <div class="fw-bold">{{ obs.reference }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Date d'observation</label>
+            <div>{{ obs.date_observation.strftime('%d/%m/%Y %H:%M') if obs.date_observation else '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Catégorie</label>
+            <div>
+              <span class="badge bg-{{ 'success' if obs.categorie == 'vegetation' else 'info' if obs.categorie == 'faune' else 'danger' if obs.categorie == 'feu' else 'primary' if obs.categorie == 'eau' else 'secondary' }}">
+                {{ obs.categorie or '—' }}
+              </span>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Niveau d'alerte</label>
+            <div>
+              {% if obs.niveau_alerte %}
+              <span class="badge bg-{{ 'danger' if obs.niveau_alerte == 'Urgence' else 'warning text-dark' if obs.niveau_alerte == 'Alerte' else 'info' if obs.niveau_alerte == 'Attention' else 'success' }}">
+                {{ obs.niveau_alerte }}
+              </span>
+              {% else %}—{% endif %}
+            </div>
+          </div>
+          {% if obs.titre %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Titre</label>
+            <div class="fw-semibold">{{ obs.titre }}</div>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Zone</label>
+            <div>{{ obs.zone or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Localité</label>
+            <div>{{ obs.localite or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">État général</label>
+            <div>
+              {% if obs.etat_general %}
+              <span class="badge bg-{{ 'success' if obs.etat_general == 'Bon' else 'warning text-dark' if obs.etat_general == 'Moyen' else 'danger' }}">
+                {{ obs.etat_general }}
+              </span>
+              {% else %}—{% endif %}
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Agent terrain</label>
+            <div>{{ obs.agent.nom if obs.agent else '—' }}</div>
+          </div>
+          {% if obs.campagne %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Campagne associée</label>
+            <div>
+              <a href="{{ url_for('collecte.campagne_detail', id=obs.campagne.id) }}" class="text-decoration-none">
+                {{ obs.campagne.reference }} — {{ obs.campagne.nom }}
+              </a>
+            </div>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Coordonnées GPS</label>
+            <div>
+              {% if obs.latitude and obs.longitude %}
+                <code>{{ obs.latitude }}, {{ obs.longitude }}</code>
+              {% else %}—{% endif %}
+            </div>
+          </div>
+          {% if obs.description %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Description</label>
+            <p class="mb-0">{{ obs.description }}</p>
+          </div>
+          {% endif %}
+          {% if obs.observations_complementaires %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Observations complémentaires</label>
+            <p class="mb-0">{{ obs.observations_complementaires }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Colonne droite ── -->
+  <div class="col-lg-5 d-flex flex-column gap-4">
+
+    <!-- Validation -->
+    <div class="card shadow-sm border-{{ 'success' if obs.validee else 'primary' }}">
+      <div class="card-header bg-{{ 'success' if obs.validee else 'primary' }} text-white">
+        <h6 class="mb-0"><i class="bi bi-patch-check me-2"></i>Validation</h6>
+      </div>
+      <div class="card-body">
+        {% if obs.validee %}
+          <div class="text-center py-2">
+            <i class="bi bi-check-circle-fill text-success fs-2 d-block mb-2"></i>
+            <p class="fw-semibold text-success mb-1">Observation validée</p>
+            {% if obs.date_validation %}
+            <small class="text-muted">le {{ obs.date_validation.strftime('%d/%m/%Y') }}</small>
+            {% endif %}
+            {% if obs.valide_par %}
+            <br><small class="text-muted">par l'agent #{{ obs.valide_par }}</small>
+            {% endif %}
+          </div>
+        {% elif current_user.has_role('admin','superviseur') %}
+          <p class="text-muted small mb-3">Cette observation est en attente de validation.</p>
+          <form method="POST" action="{{ url_for('collecte.valider_observation', id=obs.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-success w-100">
+              <i class="bi bi-check2-circle me-2"></i>Valider cette observation
+            </button>
+          </form>
+        {% else %}
+          <div class="text-center text-muted py-2">
+            <i class="bi bi-clock-history fs-2 d-block mb-2"></i>
+            <small>En attente de validation par un superviseur</small>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Mini-carte -->
+    {% if obs.latitude and obs.longitude %}
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="bi bi-map me-2"></i>Localisation</h6>
+          <a href="{{ url_for('cartographie.index') }}?lat={{ obs.latitude }}&lng={{ obs.longitude }}&zoom=13&popup={{ obs.reference|urlencode }}"
+             class="btn btn-sm btn-outline-primary" target="_blank">
+            <i class="bi bi-fullscreen me-1"></i>Plein écran
+          </a>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div id="mini-map" style="height:250px;"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Lien campagne -->
+    {% if obs.campagne %}
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body text-center">
+        <p class="text-muted small mb-2">Campagne associée</p>
+        <a href="{{ url_for('collecte.campagne_detail', id=obs.campagne.id) }}" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-collection me-1"></i>{{ obs.campagne.reference }}
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if obs.latitude and obs.longitude %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  const lat = {{ obs.latitude }};
+  const lng = {{ obs.longitude }};
+  const map = L.map('mini-map', { zoomControl: true, scrollWheelZoom: false })
+               .setView([lat, lng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  const icon = L.divIcon({
+    html: '<i class="bi bi-eye-fill" style="color:#0d6efd;font-size:1.3rem"></i>',
+    className: '', iconAnchor: [10, 10]
+  });
+  L.marker([lat, lng], { icon })
+   .addTo(map)
+   .bindPopup('<b>{{ obs.reference }}</b><br>{{ obs.categorie or "" }} — {{ obs.niveau_alerte or "" }}')
+   .openPopup();
+})();
+</script>
+{% endif %}
+{% endblock %}

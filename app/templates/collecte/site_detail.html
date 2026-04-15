@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('collecte.sites_list') }}" class="text-decoration-none">Sites vulnérables</a></li>
+            <li class="breadcrumb-item active">{{ site.reference }}</li>
+          </ol>
+        </nav>
+        <h4 class="mb-0 fw-bold mt-1">
+          <i class="bi bi-geo-alt me-2 text-warning"></i>{{ site.nom }}
+          <span class="badge ms-2 bg-{{ 'success' if site.statut == 'actif' else 'secondary' if site.statut == 'archive' else 'warning text-dark' }}">
+            {{ site.statut }}
+          </span>
+        </h4>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.sites_export_pdf') }}" class="btn btn-sm btn-outline-warning text-dark">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        </a>
+        <a href="{{ url_for('collecte.sites_list') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Retour
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ── Fiche principale ── -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-warning text-dark">
+        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informations du site</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Référence</label>
+            <div class="fw-bold">{{ site.reference }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Nom</label>
+            <div>{{ site.nom }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Type de site</label>
+            <div>{{ site.type_site or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Date d'identification</label>
+            <div>{{ site.date_identification.strftime('%d/%m/%Y') if site.date_identification else '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Zone</label>
+            <div>{{ site.zone or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Localité</label>
+            <div>{{ site.localite or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Superficie</label>
+            <div>{{ "%.1f"|format(site.superficie_ha or 0) }} ha</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Coordonnées GPS</label>
+            <div>
+              {% if site.latitude and site.longitude %}
+                <code>{{ site.latitude }}, {{ site.longitude }}</code>
+              {% else %}—{% endif %}
+            </div>
+          </div>
+
+          <!-- Score + vulnérabilité -->
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Niveau de vulnérabilité</label>
+            <div>
+              <span class="badge bg-{{ 'danger' if site.niveau_vulnerabilite in ['Critique','Élevé'] else 'warning text-dark' if site.niveau_vulnerabilite == 'Moyen' else 'success' }} fs-6">
+                {{ site.niveau_vulnerabilite or '—' }}
+              </span>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Score de vulnérabilité</label>
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height:10px">
+                <div class="progress-bar bg-{{ 'danger' if (site.score_vulnerabilite or 0) > 75 else 'warning' if (site.score_vulnerabilite or 0) > 50 else 'success' }}"
+                     style="width:{{ site.score_vulnerabilite or 0 }}%"></div>
+              </div>
+              <strong>{{ site.score_vulnerabilite or 0 }}/100</strong>
+            </div>
+          </div>
+
+          {% if site.pressions %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Pressions identifiées</label>
+            <p class="mb-0">{{ site.pressions }}</p>
+          </div>
+          {% endif %}
+          {% if site.especes_cles %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Espèces clés</label>
+            <p class="mb-0">{{ site.especes_cles }}</p>
+          </div>
+          {% endif %}
+          {% if site.valeur_ecologique %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Valeur écologique</label>
+            <p class="mb-0">{{ site.valeur_ecologique }}</p>
+          </div>
+          {% endif %}
+          {% if site.mesures_protection %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Mesures de protection</label>
+            <p class="mb-0">{{ site.mesures_protection }}</p>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Fréquence de surveillance</label>
+            <div>{{ site.frequence_surveillance or '—' }}</div>
+          </div>
+          {% if site.observations %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Observations</label>
+            <p class="mb-0">{{ site.observations }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Colonne droite ── -->
+  <div class="col-lg-5 d-flex flex-column gap-4">
+
+    <!-- Changement de statut -->
+    <div class="card shadow-sm border-warning">
+      <div class="card-header bg-warning bg-opacity-10">
+        <h6 class="mb-0 text-warning"><i class="bi bi-arrow-repeat me-2"></i>Changer le statut</h6>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">Statut actuel :
+          <span class="badge bg-{{ 'success' if site.statut == 'actif' else 'secondary' if site.statut == 'archive' else 'warning text-dark' }}">
+            {{ site.statut }}
+          </span>
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+          {% for st, label, cls in [
+              ('actif',    'Actif',     'success'),
+              ('surveille','Surveillé', 'warning'),
+              ('archive',  'Archiver',  'secondary')
+          ] %}
+          {% if site.statut != st %}
+          <form method="POST" action="{{ url_for('collecte.site_changer_statut', id=site.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="statut" value="{{ st }}">
+            <button class="btn btn-sm btn-{{ cls }} {% if cls == 'warning' %}text-dark{% endif %}">
+              <i class="bi bi-arrow-right-circle me-1"></i>{{ label }}
+            </button>
+          </form>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini-carte -->
+    {% if site.latitude and site.longitude %}
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="bi bi-map me-2"></i>Localisation</h6>
+          <a href="{{ url_for('cartographie.index') }}?lat={{ site.latitude }}&lng={{ site.longitude }}&zoom=13&popup={{ site.nom|urlencode }}"
+             class="btn btn-sm btn-outline-warning" target="_blank">
+            <i class="bi bi-fullscreen me-1"></i>Plein écran
+          </a>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div id="mini-map" style="height:250px;"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Lien cartographie -->
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body text-center">
+        <p class="text-muted small mb-2">Explorer la zone dans la cartographie</p>
+        <a href="{{ url_for('cartographie.index') }}?lat={{ site.latitude or 12.36 }}&lng={{ site.longitude or -1.53 }}&zoom=10"
+           class="btn btn-outline-warning btn-sm" target="_blank">
+          <i class="bi bi-map-fill me-1"></i>Ouvrir dans Cartographie
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if site.latitude and site.longitude %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  const lat = {{ site.latitude }};
+  const lng = {{ site.longitude }};
+  const map = L.map('mini-map', { zoomControl: true, scrollWheelZoom: false })
+               .setView([lat, lng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  const icon = L.divIcon({
+    html: '<i class="bi bi-geo-alt-fill" style="color:#ffc107;font-size:1.4rem"></i>',
+    className: '', iconAnchor: [10, 24]
+  });
+  L.marker([lat, lng], { icon })
+   .addTo(map)
+   .bindPopup('<b>{{ site.nom }}</b><br>{{ site.type_site or "" }}<br>{{ site.niveau_vulnerabilite or "" }}')
+   .openPopup();
+})();
+</script>
+{% endif %}
+{% endblock %}

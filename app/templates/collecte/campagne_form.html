@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle campagne de collecte — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-clipboard2-plus me-2 text-success"></i>Planifier une campagne de collecte</h4>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-9">
+    <div class="card shadow-sm">
+      <div class="card-header bg-success text-white">
+        <h6 class="mb-0"><i class="bi bi-clipboard2-data me-2"></i>Nouvelle campagne terrain</h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row g-3 mb-4">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Nom de la campagne <span class="text-danger">*</span></label>
+              <input type="text" name="nom" class="form-control" required
+                     placeholder="Ex: Mission inventaire forêt Est — Trimestre 1 2024">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Zone d'intervention</label>
+              <input type="text" name="zone" class="form-control" placeholder="Zone, secteur, localité…">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Chef de mission</label>
+              <input type="text" name="chef_mission" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Date début <span class="text-danger">*</span></label>
+              <input type="date" name="date_debut" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Date fin prévue</label>
+              <input type="date" name="date_fin_prevue" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Statut initial</label>
+              <select name="statut" class="form-select">
+                <option value="planifie">Planifiée</option>
+                <option value="en_cours">En cours</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Membres de l'équipe</label>
+            <input type="text" name="equipe" class="form-control"
+                   placeholder="Noms des agents, séparés par virgule…">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Objectifs de la mission</label>
+            <textarea name="objectifs" class="form-control" rows="3"
+                      placeholder="Décrire les buts, zones à couvrir, indicateurs à mesurer…"></textarea>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Description</label>
+            <textarea name="description" class="form-control" rows="2"></textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success px-4">
+              <i class="bi bi-check-circle me-2"></i>Créer la campagne
+            </button>
+            <a href="{{ url_for('collecte.campagnes_list') }}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Annuler
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

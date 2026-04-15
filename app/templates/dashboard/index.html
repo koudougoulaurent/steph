@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2 text-success-custom"></i>Tableau de bord</h4>
+        <small class="text-muted">Vue d'ensemble — Suivi environnemental
+          <span id="kpi-last-update" class="ms-2 text-success" style="font-size:.75rem"></span>
+        </small>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-success" id="btn-refresh-kpis" onclick="refreshKpis()" title="Actualiser les KPIs">
+          <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+        </button>
+        <a href="{{ url_for('collecte.feu_nouveau') }}" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-fire me-1"></i>Signaler un feu
+        </a>
+        <a href="{{ url_for('collecte.observation_nouvelle') }}" class="btn btn-sm btn-success">
+          <i class="bi bi-plus-circle me-1"></i>Nouvelle observation
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- ══ KPI CARDS ══ -->
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-md-3">
+    <div class="kpi-card border-start border-4 border-danger">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <p class="kpi-label">Feux cette année</p>
+          <h2 class="kpi-value text-danger" id="kpi-feux">{{ stats.feux_annee }}</h2>
+          <small class="text-muted" id="kpi-superficie">{{ "%.0f"|format(stats.superficie_brulee) }} ha brülés</small>
+        </div>
+        <div class="kpi-icon bg-danger-subtle"><i class="bi bi-fire text-danger fs-3"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="kpi-card border-start border-4 border-warning">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <p class="kpi-label">Sites vulnérables</p>
+          <h2 class="kpi-value text-warning" id="kpi-sites">{{ stats.sites_critiques + stats.sites_eleves }}</h2>
+          <small class="text-muted"><span id="kpi-sites-crit">{{ stats.sites_critiques }}</span> critiques</small>
+        </div>
+        <div class="kpi-icon bg-warning-subtle"><i class="bi bi-geo-alt-fill text-warning fs-3"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="kpi-card border-start border-4 border-danger">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <p class="kpi-label">Braconnage (mois)</p>
+          <h2 class="kpi-value text-danger" id="kpi-braco">{{ stats.braconnage_mois }}</h2>
+          <small class="text-muted"><span id="kpi-braco-grave">{{ stats.braconnage_grave }}</span> non traités</small>
+        </div>
+        <div class="kpi-icon bg-danger-subtle"><i class="bi bi-exclamation-octagon text-danger fs-3"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="kpi-card border-start border-4 border-success">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <p class="kpi-label">Campagnes en cours</p>
+          <h2 class="kpi-value text-success" id="kpi-campagnes">{{ stats.campagnes_cours }}</h2>
+          <small class="text-muted"><span id="kpi-rapports">{{ stats.rapports_generes }}</span> rapports / an</small>
+        </div>
+        <div class="kpi-icon bg-success-subtle"><i class="bi bi-clipboard-check text-success fs-3"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GRAPHIQUES ══ -->
+<div class="row g-3 mb-4">
+  <!-- Évolution couverture végétale -->
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-graph-up-arrow me-2 text-success"></i>
+          Évolution de la couverture végétale ({% if annees_dispo %}{{ annees_dispo[0] }}–{{ annees_dispo[-1] }}{% endif %})
+        </h6>
+        <a href="{{ url_for('cartographie.dynamique') }}" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-map me-1"></i>Voir carte
+        </a>
+      </div>
+      <div class="card-body">
+        <canvas id="chartEvolution" style="max-height:300px"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feux par mois -->
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white border-bottom">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-fire me-2 text-danger"></i>Feux par mois</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="chartFeux" style="max-height:300px"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TABLEAUX ══ -->
+<div class="row g-3">
+
+  <!-- Alertes actives -->
+  <div class="col-12 col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-header bg-danger text-white d-flex justify-content-between">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-bell-fill me-2"></i>Alertes actives</h6>
+        <a href="{{ url_for('collecte.braconnage_list') }}" class="btn btn-sm btn-outline-light">Tout voir</a>
+      </div>
+      <div class="card-body p-0">
+        {% if alertes %}
+          <div class="list-group list-group-flush">
+            {% for a in alertes %}
+            <div class="list-group-item list-group-item-action py-3">
+              <div class="d-flex gap-3 align-items-start">
+                <span class="badge rounded-pill bg-{{ 'danger' if a.niveau_gravite in ['Critique','Grave'] else 'warning' }} mt-1">
+                  {{ a.niveau_gravite }}
+                </span>
+                <div class="flex-grow-1">
+                  <div class="fw-semibold small">{{ a.type_indicateur }}</div>
+                  <div class="text-muted" style="font-size:0.8rem">
+                    <i class="bi bi-geo-alt me-1"></i>{{ a.zone }}
+                    &nbsp;·&nbsp;
+                    <i class="bi bi-calendar me-1"></i>{{ a.date_constat.strftime('%d/%m/%Y') }}
+                  </div>
+                </div>
+                <span class="badge bg-secondary">{{ a.reference }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-4 text-muted">
+            <i class="bi bi-check-circle-fill text-success fs-3"></i>
+            <p class="mt-2 mb-0">Aucune alerte active</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Feux récents -->
+  <div class="col-12 col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white border-bottom d-flex justify-content-between">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-fire me-2 text-danger"></i>Feux de brousse récents</h6>
+        <a href="{{ url_for('collecte.feux_list') }}" class="btn btn-sm btn-outline-danger">Tout voir</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Réf.</th><th>Date</th><th>Zone</th><th>Superficie</th><th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in feux_recents %}
+            <tr>
+              <td><small class="text-muted">{{ f.reference }}</small></td>
+              <td><small>{{ f.date_debut.strftime('%d/%m/%y') }}</small></td>
+              <td><small>{{ f.zone }}</small></td>
+              <td>
+                <span class="badge bg-{{ 'danger' if f.superficie_brulee_ha > 500 else 'warning text-dark' if f.superficie_brulee_ha > 100 else 'success' }}">
+                  {{ "%.0f"|format(f.superficie_brulee_ha) }} ha
+                </span>
+              </td>
+              <td>
+                <span class="badge bg-{{ 'success' if f.statut == 'éteint' else 'warning text-dark' if f.statut == 'surveille' else 'danger' }}">
+                  {{ f.statut }}
+                </span>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-3">Aucun feu enregistré</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ CAMPAGNES ACTIVES ══ -->
+{% if campagnes %}
+<div class="row g-3 mt-1">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-clipboard-data me-2 text-success"></i>Campagnes de collecte en cours</h6>
+        <a href="{{ url_for('collecte.campagnes_list') }}" class="btn btn-sm btn-outline-success">Tout voir</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Référence</th>
+                <th>Nom</th>
+                <th>Zone</th>
+                <th>Début</th>
+                <th>Fin prévue</th>
+                <th class="text-center">Obs.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in campagnes %}
+              <tr>
+                <td><small class="text-muted">{{ c.reference }}</small></td>
+                <td class="fw-semibold">{{ c.nom }}</td>
+                <td><small>{{ c.zone or '—' }}</small></td>
+                <td><small>{{ c.date_debut.strftime('%d/%m/%Y') if c.date_debut else '—' }}</small></td>
+                <td><small>{{ c.date_fin_prevue.strftime('%d/%m/%Y') if c.date_fin_prevue else '—' }}</small></td>
+                <td class="text-center">
+                  <span class="badge bg-success-subtle text-success">{{ c.count_observations }}</span>
+                </td>
+                <td>
+                  <a href="{{ url_for('collecte.campagne_detail', id=c.id) }}" class="btn btn-xs btn-outline-secondary py-0 px-2">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Graphique évolution couverture
+fetch("{{ url_for('dashboard.api_stats_evolution') }}")
+  .then(r => r.json())
+  .then(d => {
+    new Chart(document.getElementById('chartEvolution'), {
+      type: 'line',
+      data: d,
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+        },
+        scales: {
+          y: { title: { display: true, text: 'Superficie (ha)' }, ticks: { font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  });
+
+// Graphique feux par mois
+fetch("{{ url_for('dashboard.api_stats_feux') }}")
+  .then(r => r.json())
+  .then(d => {
+    new Chart(document.getElementById('chartFeux'), {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [{
+          label: 'Nb feux',
+          data: d.data,
+          backgroundColor: 'rgba(231,76,60,0.7)',
+          borderColor: '#e74c3c',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  });
+
+// ── Auto-refresh des KPIs toutes les 60 secondes ──────────────────────────
+const kpiUrl = "{{ url_for('api.kpis') }}";
+
+function refreshKpis() {
+  const btn = document.getElementById('btn-refresh-kpis');
+  if (btn) { btn.querySelector('i').classList.add('spin'); btn.disabled = true; }
+
+  fetch(kpiUrl)
+    .then(r => r.json())
+    .then(d => {
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      set('kpi-feux', d.feux_annee);
+      set('kpi-superficie', (d.superficie_brulee || 0).toLocaleString('fr-FR') + ' ha brûlés');
+      set('kpi-sites', d.sites_total);
+      set('kpi-sites-crit', d.sites_critiques);
+      set('kpi-braco', d.braconnage_mois);
+      set('kpi-braco-grave', d.braconnage_grave);
+      set('kpi-campagnes', d.campagnes_cours);
+      set('kpi-rapports', d.rapports_annee);
+      const ts = document.getElementById('kpi-last-update');
+      if (ts) ts.textContent = '✓ Mis à jour à ' + d.refreshed_at;
+    })
+    .catch(() => {
+      const ts = document.getElementById('kpi-last-update');
+      if (ts) ts.textContent = '';
+    })
+    .finally(() => {
+      if (btn) { btn.querySelector('i').classList.remove('spin'); btn.disabled = false; }
+    });
+}
+
+// Premier refresh après 5 s, puis toutes les 60 s
+setTimeout(refreshKpis, 5000);
+setInterval(refreshKpis, 60000);
+</script>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; display: inline-block; }
+</style>
+{% endblock %}

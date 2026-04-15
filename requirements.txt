@@ -1,0 +1,41 @@
+# ============================================================
+# VégéSuivi Pro — Dépendances Python
+# Direction Régionale de l'Environnement
+# ============================================================
+
+# Framework web
+Flask>=3.0.0
+Werkzeug>=3.0.0
+
+# Base de données & ORM
+Flask-SQLAlchemy>=3.1.0
+Flask-Migrate>=4.0.5
+SQLAlchemy>=2.0.0
+
+# Authentification
+Flask-Login>=0.6.3
+
+# Génération de rapports
+reportlab>=4.0.0
+openpyxl>=3.1.0
+
+# Calcul scientifique — indices spectraux (NDVI, SAVI, EVI, MSAVI2, NBR, dNBR, BAI)
+numpy>=1.26.0
+
+# Lecture images satellite GeoTIFF (multi-bandes, Sentinel-2, Landsat…)
+tifffile>=2023.1.0
+
+# Visualisation raster — cartes colorimétriques des indices
+matplotlib>=3.7.0
+
+# Lecture Shapefile terrain (import de données SIG .shp)
+pyshp>=2.3.0
+
+# Variables d'environnement
+python-dotenv>=1.0.0
+
+# Optionnel — accès API REST avec authentification par jeton
+# Flask-JWT-Extended>=4.5.0
+
+# Optionnel — production (serveur WSGI)
+# gunicorn>=21.0.0

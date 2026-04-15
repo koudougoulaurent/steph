@@ -1,0 +1,723 @@
+{% extends "base.html" %}
+{% block title %}Indices de Végétation — VégéSuivi Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Cartes d'indice ── */
+  .indice-card { border-top: 4px solid #27ae60; transition: box-shadow .2s; }
+  .indice-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+
+  /* ── Formule monospace ── */
+  .formula-box {
+    background: #f0fff4; border-left: 3px solid #27ae60;
+    padding: 8px 14px; border-radius: 4px;
+    font-family: 'Courier New', monospace; font-size: .88rem;
+  }
+
+  /* ── Valeur numérique grande ── */
+  .val-display { font-size: 2.4rem; font-weight: 800; letter-spacing: -1px; }
+
+  /* ── Jauge ── */
+  .gauge-bar { background:#e9ecef; border-radius:7px; height:14px; overflow:hidden; }
+  .gauge-fill { height:100%; border-radius:7px; transition: width .5s ease; }
+
+  /* ── Badge Sahel ── */
+  .badge-sahel {
+    background: linear-gradient(135deg,#f39c12,#e74c3c);
+    color:#fff; font-size:.72rem;
+  }
+
+  /* ── Légende dégradé (mode manuel) ── */
+  .legend-gradient {
+    height: 10px; border-radius: 5px;
+    background: linear-gradient(to right, #d32f2f, #ff9800, #fffde7, #66bb6a, #1b5e20);
+    margin-bottom: 2px;
+  }
+
+  /* ── Onglets mode ── */
+  .nav-tabs .nav-link { font-size: .9rem; font-weight: 600; }
+  .nav-tabs .nav-link.active { background:#fff; border-bottom-color:#fff; }
+
+  /* ── Section satellite ── */
+  .upload-zone {
+    border: 2px dashed #adb5bd; border-radius: 8px;
+    padding: 10px 14px; background: #f8f9fa;
+    transition: border-color .2s;
+  }
+  .upload-zone:focus-within { border-color: #27ae60; background: #f0fff4; }
+
+  /* ── Stats raster ── */
+  .stat-pill {
+    display: inline-flex; flex-direction: column;
+    align-items: center; background: #f8f9fa;
+    border: 1px solid #dee2e6; border-radius: 8px;
+    padding: 6px 12px; min-width: 80px; font-size: .78rem;
+  }
+  .stat-pill strong { font-size: 1rem; color: #212529; }
+
+  /* ── Barre distribution ── */
+  .distrib-bar { height: 18px; border-radius: 4px; display: flex; overflow: hidden; }
+  .distrib-bar span { display: flex; align-items: center; justify-content: center;
+                      font-size: .65rem; color: #fff; font-weight: 700;
+                      transition: flex .4s ease; overflow: hidden; min-width: 0; }
+
+  /* ── Image raster ── */
+  .raster-img { width: 100%; border-radius: 8px; border: 1px solid #dee2e6;
+                image-rendering: pixelated; }
+
+  /* ── Preset pill ── */
+  .preset-btn { cursor: pointer; transition: background .15s; }
+  .preset-btn:hover { background: #27ae60 !important; color: #fff !important; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold">
+          <i class="bi bi-flower2 me-2 text-success"></i>Indices de Végétation
+        </h4>
+        <small class="text-muted">NDVI · SAVI · EVI · MSAVI2 — Scalaires & images satellite</small>
+      </div>
+      <a href="{{ url_for('indices.feux') }}" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-fire me-1"></i>Indices feux
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ═══════════════════════════════ PANNEAU GAUCHE ═══════════════════════════════ -->
+  <div class="col-12 col-xl-4">
+    <div class="card shadow-sm sticky-top" style="top:76px">
+
+      <!-- Onglets -->
+      <div class="card-header bg-white pb-0 border-bottom-0">
+        <ul class="nav nav-tabs card-header-tabs" id="modeTabsVeg" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if mode != 'raster' %}active{% endif %}"
+                    id="tab-manual-veg-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-manual-veg"
+                    type="button" role="tab">
+              <i class="bi bi-keyboard me-1"></i>Saisie manuelle
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if mode == 'raster' %}active{% endif %}"
+                    id="tab-raster-veg-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-raster-veg"
+                    type="button" role="tab">
+              <i class="bi bi-satellite me-1"></i>Image satellite
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card-body tab-content pt-3">
+
+        <!-- ─── TAB 1 : SAISIE MANUELLE ─── -->
+        <div class="tab-pane fade {% if mode != 'raster' %}show active{% endif %}"
+             id="tab-manual-veg" role="tabpanel">
+
+          <div class="alert alert-success py-2 mb-3" style="font-size:.84rem">
+            <i class="bi bi-info-circle me-1"></i>
+            Valeurs de réflectance normalisées <strong>[0.0 – 1.0]</strong>.
+          </div>
+
+          <form method="POST" id="form-veg" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="mode" value="manual">
+
+            <h6 class="fw-bold text-muted text-uppercase mb-2" style="font-size:.75rem">
+              <i class="bi bi-layers me-1"></i>Bandes spectrales
+            </h6>
+
+            <!-- NIR -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                NIR <small class="text-muted">(Proche infrarouge)</small>
+                <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text bg-dark text-white" style="min-width:40px">
+                  <span style="display:inline-block;width:12px;height:12px;background:#8e44ad;border-radius:2px"></span>
+                </span>
+                <input type="number" name="nir" step="0.0001" min="0" max="1"
+                       class="form-control form-control-sm" required
+                       placeholder="0.35" value="{{ valeurs.get('nir','') if valeurs else '' }}">
+                <span class="input-group-text small text-muted">0–1</span>
+              </div>
+              <small class="text-muted">Sentinel-2 : B8 · Landsat 8/9 : B5</small>
+            </div>
+
+            <!-- Red -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                Red <small class="text-muted">(Bande rouge)</small>
+                <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text" style="min-width:40px">
+                  <span style="display:inline-block;width:12px;height:12px;background:#e74c3c;border-radius:2px"></span>
+                </span>
+                <input type="number" name="red" step="0.0001" min="0" max="1"
+                       class="form-control form-control-sm" required
+                       placeholder="0.12" value="{{ valeurs.get('red','') if valeurs else '' }}">
+                <span class="input-group-text small text-muted">0–1</span>
+              </div>
+              <small class="text-muted">Sentinel-2 : B4 · Landsat 8/9 : B4</small>
+            </div>
+
+            <!-- Blue -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                Blue <small class="text-muted">(Bande bleue — requis pour EVI)</small>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text" style="min-width:40px">
+                  <span style="display:inline-block;width:12px;height:12px;background:#3498db;border-radius:2px"></span>
+                </span>
+                <input type="number" name="blue" step="0.0001" min="0" max="1"
+                       class="form-control form-control-sm"
+                       placeholder="0.05" value="{{ valeurs.get('blue','') if valeurs else '' }}">
+                <span class="input-group-text small text-muted">0–1</span>
+              </div>
+              <small class="text-muted">Sentinel-2 : B2 · Landsat 8/9 : B2</small>
+            </div>
+
+            <hr class="my-3">
+
+            <!-- L SAVI -->
+            <div class="mb-4">
+              <label class="form-label fw-semibold d-flex justify-content-between">
+                <span>Facteur L <small class="text-muted">(SAVI / MSAVI2)</small></span>
+                <strong class="text-success" id="lsavi-val">
+                  {{ valeurs.L_savi if valeurs and valeurs.L_savi else '0.5' }}
+                </strong>
+              </label>
+              <input type="range" name="L_savi" id="L_savi_range" class="form-range"
+                     min="0" max="1" step="0.05"
+                     value="{{ valeurs.L_savi if valeurs and valeurs.L_savi else '0.5' }}"
+                     oninput="document.getElementById('lsavi-val').textContent=this.value">
+              <div class="d-flex justify-content-between" style="font-size:.7rem;color:#6c757d">
+                <span>0 — Végétation dense</span><span>1 — Sol nu</span>
+              </div>
+            </div>
+
+            {% if erreur %}
+            <div class="alert alert-danger py-2 small">
+              <i class="bi bi-exclamation-circle me-1"></i>{{ erreur }}
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-success w-100 mt-1" id="btn-calc">
+              <i class="bi bi-calculator me-2"></i>Calculer les indices
+            </button>
+            <a href="{{ url_for('indices.vegetation') }}"
+               class="btn btn-outline-secondary w-100 mt-2 btn-sm">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
+            </a>
+          </form>
+
+          <!-- Légende colorimétrique -->
+          <div class="mt-4">
+            <p class="small fw-bold text-muted mb-1 text-uppercase" style="font-size:.72rem">
+              <i class="bi bi-palette me-1"></i>Légende NDVI
+            </p>
+            <div class="legend-gradient"></div>
+            <div class="d-flex justify-content-between" style="font-size:.68rem;color:#6c757d">
+              <span>−1 Eau</span><span>0 Sol nu</span><span>+1 Forêt dense</span>
+            </div>
+          </div>
+        </div>
+        <!-- /tab-manual -->
+
+        <!-- ─── TAB 2 : IMAGE SATELLITE ─── -->
+        <div class="tab-pane fade {% if mode == 'raster' %}show active{% endif %}"
+             id="tab-raster-veg" role="tabpanel">
+
+          <form method="POST" enctype="multipart/form-data" id="form-raster-veg" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="mode" value="raster">
+
+            <!-- Presets satellite -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-uppercase text-muted"
+                     style="font-size:.72rem">
+                <i class="bi bi-stars me-1"></i>Préréglages satellites
+              </label>
+              <div class="d-flex flex-wrap gap-1">
+                <span class="badge border border-success text-success preset-btn"
+                      data-nir="1" data-red="1" data-blue="1"
+                      onclick="setPreset(this,'s2')">
+                  Sentinel-2
+                </span>
+                <span class="badge border border-primary text-primary preset-btn"
+                      data-nir="1" data-red="1" data-blue="1"
+                      onclick="setPreset(this,'l89')">
+                  Landsat 8/9
+                </span>
+                <span class="badge border border-secondary text-secondary preset-btn"
+                      data-nir="1" data-red="1" data-blue="1"
+                      onclick="setPreset(this,'l57')">
+                  Landsat 5/7
+                </span>
+              </div>
+              <small class="text-muted d-block mt-1">
+                Cliquez pour pré-remplir les numéros de bandes.
+              </small>
+            </div>
+
+            <hr class="my-3">
+
+            <!-- NIR image -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">
+                <span style="display:inline-block;width:12px;height:12px;background:#8e44ad;border-radius:2px;vertical-align:middle"></span>
+                Image NIR <span class="text-danger">*</span>
+                <small class="text-muted">(GeoTIFF)</small>
+              </label>
+              <div class="upload-zone mb-1">
+                <input type="file" name="nir_tif" class="form-control form-control-sm border-0 bg-transparent p-0"
+                       accept=".tif,.tiff">
+              </div>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Bande n°</span>
+                <input type="number" name="nir_bande" id="nir_bande"
+                       class="form-control" min="1" value="1">
+                <span class="input-group-text text-muted" style="font-size:.75rem" id="hint-nir">
+                  S2:B8 L8:B5
+                </span>
+              </div>
+            </div>
+
+            <!-- Red image -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">
+                <span style="display:inline-block;width:12px;height:12px;background:#e74c3c;border-radius:2px;vertical-align:middle"></span>
+                Image Red <span class="text-danger">*</span>
+                <small class="text-muted">(GeoTIFF)</small>
+              </label>
+              <div class="upload-zone mb-1">
+                <input type="file" name="red_tif" class="form-control form-control-sm border-0 bg-transparent p-0"
+                       accept=".tif,.tiff">
+              </div>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Bande n°</span>
+                <input type="number" name="red_bande" id="red_bande"
+                       class="form-control" min="1" value="1">
+                <span class="input-group-text text-muted" style="font-size:.75rem" id="hint-red">
+                  S2:B4 L8:B4
+                </span>
+              </div>
+            </div>
+
+            <!-- Blue image (optionnel) -->
+            <div class="mb-3" id="blue-section">
+              <label class="form-label fw-semibold small">
+                <span style="display:inline-block;width:12px;height:12px;background:#3498db;border-radius:2px;vertical-align:middle"></span>
+                Image Blue
+                <small class="text-muted">(requis pour EVI)</small>
+              </label>
+              <div class="upload-zone mb-1">
+                <input type="file" name="blue_tif" class="form-control form-control-sm border-0 bg-transparent p-0"
+                       accept=".tif,.tiff">
+              </div>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Bande n°</span>
+                <input type="number" name="blue_bande" id="blue_bande"
+                       class="form-control" min="1" value="1">
+                <span class="input-group-text text-muted" style="font-size:.75rem">
+                  S2:B2 L8:B2
+                </span>
+              </div>
+            </div>
+
+            <hr class="my-3">
+
+            <!-- L SAVI raster -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small d-flex justify-content-between">
+                <span>Facteur L (SAVI)</span>
+                <strong class="text-success" id="lsavi-raster-val">0.5</strong>
+              </label>
+              <input type="range" name="L_savi" id="L_savi_raster" class="form-range"
+                     min="0" max="1" step="0.05" value="0.5"
+                     oninput="document.getElementById('lsavi-raster-val').textContent=this.value">
+            </div>
+
+            <!-- Sélection des indices -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-uppercase text-muted"
+                     style="font-size:.72rem">
+                <i class="bi bi-check2-square me-1"></i>Indices à calculer
+              </label>
+              <div class="d-flex flex-wrap gap-2">
+                {% for idx_key, idx_label, idx_color, idx_checked in [
+                   ('NDVI','NDVI','success',true),
+                   ('SAVI','SAVI','success',true),
+                   ('EVI','EVI','info',false),
+                   ('MSAVI2','MSAVI2','secondary',false)
+                ] %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox"
+                         name="indices_vegetation" value="{{ idx_key }}"
+                         id="chk_{{ idx_key }}_r"
+                         {% if idx_checked %}checked{% endif %}
+                         onchange="updateBlueVisibility()">
+                  <label class="form-check-label" for="chk_{{ idx_key }}_r">
+                    <span class="badge bg-{{ idx_color }}" style="font-size:.78rem">{{ idx_label }}</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+              <small class="text-muted">EVI nécessite l'image Blue.</small>
+            </div>
+
+            {% if erreur and mode == 'raster' %}
+            <div class="alert alert-danger py-2 small">
+              <i class="bi bi-exclamation-circle me-1"></i>{{ erreur }}
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-success w-100 mt-1" id="btn-raster-veg">
+              <i class="bi bi-cpu me-2"></i>Traiter l'image satellite
+            </button>
+            <a href="{{ url_for('indices.vegetation') }}"
+               class="btn btn-outline-secondary w-100 mt-2 btn-sm">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
+            </a>
+          </form>
+
+          <div class="mt-3 alert alert-light border small mb-0">
+            <i class="bi bi-lightbulb text-warning me-1"></i>
+            <strong>Formats acceptés :</strong> GeoTIFF (.tif / .tiff), fichier mono-bande ou multi-bandes.
+            Sentinel-2 L2A, Landsat 8/9 Surface Reflectance.
+            Taille max : 50 Mo.
+          </div>
+        </div>
+        <!-- /tab-raster -->
+
+      </div>
+    </div>
+  </div>
+  <!-- /col gauche -->
+
+  <!-- ═══════════════════════════════ PANNEAU DROIT ═══════════════════════════════ -->
+  <div class="col-12 col-xl-8">
+
+    {# ── RÉSULTATS RASTER ── #}
+    {% if raster_results %}
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h5 class="fw-bold mb-0">
+        <i class="bi bi-map me-2 text-success"></i>
+        Résultats image satellite
+        <span class="badge bg-success ms-2" style="font-size:.75rem">{{ raster_results|length }} indice(s)</span>
+      </h5>
+      <a href="{{ url_for('indices.vegetation') }}"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-x-circle me-1"></i>Nouveau calcul
+      </a>
+    </div>
+
+    {% for r in raster_results %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-white d-flex align-items-center gap-2">
+        <span class="badge bg-success fs-6">{{ r.nom }}</span>
+        <span class="text-muted small">Carte colorimétrique — pixels valides :
+          <strong>{{ "%.1f"|format(100 - r.stats.pct_nodata) }}%</strong>
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 align-items-start">
+
+          <!-- Image colorimétrique -->
+          <div class="col-12 col-md-7">
+            {% if r.image_b64 %}
+            <img src="data:image/png;base64,{{ r.image_b64 }}"
+                 alt="Carte {{ r.nom }}" class="raster-img">
+            {% else %}
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-image" style="font-size:2rem"></i>
+              <p class="small mt-2">Visualisation non disponible</p>
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Stats & distribution -->
+          <div class="col-12 col-md-5">
+
+            <!-- Statistiques descriptives -->
+            <p class="fw-bold small text-uppercase text-muted mb-2" style="font-size:.72rem">
+              <i class="bi bi-bar-chart me-1"></i>Statistiques
+            </p>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              {% for label, key, fmt in [
+                ('Min', 'min', '%.4f'),
+                ('Max', 'max', '%.4f'),
+                ('Moy', 'mean', '%.4f'),
+                ('Écart-type', 'std', '%.4f'),
+                ('Médiane', 'mediane', '%.4f'),
+                ('NoData', 'pct_nodata', '%.1f%%')
+              ] %}
+              <div class="stat-pill">
+                <span class="text-muted" style="font-size:.68rem">{{ label }}</span>
+                <strong>
+                  {% if key == 'pct_nodata' %}
+                    {{ "%.1f"|format(r.stats[key]) }}%
+                  {% else %}
+                    {{ fmt|format(r.stats[key]) if r.stats.get(key) is not none else '—' }}
+                  {% endif %}
+                </strong>
+              </div>
+              {% endfor %}
+            </div>
+
+            <!-- Distribution par classe -->
+            {% if r.distribution %}
+            <p class="fw-bold small text-uppercase text-muted mb-2" style="font-size:.72rem">
+              <i class="bi bi-pie-chart me-1"></i>Distribution
+            </p>
+            <div class="distrib-bar mb-2">
+              {% for d in r.distribution %}
+              <span style="flex:{{ d.pct }};background:{{ d.color }}"
+                    title="{{ d.label }} : {{ d.pct|round(1) }}%">
+                {% if d.pct > 8 %}{{ d.pct|round(0)|int }}%{% endif %}
+              </span>
+              {% endfor %}
+            </div>
+            <div class="d-flex flex-column gap-1 mt-1">
+              {% for d in r.distribution %}
+              <div class="d-flex align-items-center gap-2" style="font-size:.75rem">
+                <span style="display:inline-block;width:12px;height:12px;background:{{ d.color }};border-radius:2px;flex-shrink:0"></span>
+                <span>{{ d.label }}</span>
+                <span class="ms-auto text-muted fw-semibold">{{ "%.1f"|format(d.pct) }}%</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Plage valide -->
+            <div class="mt-3 pt-2 border-top" style="font-size:.78rem;color:#6c757d">
+              <i class="bi bi-arrow-left-right me-1"></i>
+              Plage calculée : <strong>{{ "%.3f"|format(r.vmin) }}</strong>
+              → <strong>{{ "%.3f"|format(r.vmax) }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    {# ── RÉSULTATS MANUELS ── #}
+    {% elif resultats %}
+
+    <!-- Cartes résultats -->
+    <div class="row g-3">
+      {% for r in resultats %}
+      {% set has_val = r.valeur is not none %}
+      <div class="col-12 col-md-6">
+        <div class="card shadow-sm indice-card h-100"
+             style="border-top-color: var(--bs-{{ r.interpretation.couleur if has_val else 'secondary' }})">
+          <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+            <div>
+              <span class="badge bg-{{ r.badge_color }} me-2" style="font-size:.85rem">{{ r.nom }}</span>
+              {% if r.get('sahel') %}
+              <span class="badge badge-sahel"><i class="bi bi-star-fill me-1"></i>Sahel</span>
+              {% endif %}
+            </div>
+            {% if has_val %}
+            <span class="val-display text-{{ r.interpretation.couleur }}">
+              {{ "%.4f"|format(r.valeur) }}
+            </span>
+            {% else %}
+            <span class="text-muted fst-italic small">Calcul impossible</span>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            <p class="text-muted mb-2" style="font-size:.85rem">
+              <strong>{{ r.nom_long }}</strong>
+            </p>
+
+            <!-- Formule -->
+            <div class="formula-box mb-3">{{ r.formule }}</div>
+
+            {% if has_val %}
+            {% set pct = ((r.valeur + 1) / 2 * 100)|round(0)|int %}
+            {% set pct = [0, [pct, 100]|min]|max %}
+            <div class="gauge-bar mb-1">
+              <div class="gauge-fill bg-{{ r.interpretation.couleur }}" style="width:{{ pct }}%"></div>
+            </div>
+            <div class="d-flex justify-content-between mb-3" style="font-size:.7rem;color:#6c757d">
+              <span>−1</span><span>0</span><span>+1</span>
+            </div>
+
+            {% if r.interpretation %}
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-{{ r.interpretation.icone }} text-{{ r.interpretation.couleur }} fs-5"></i>
+              <span class="fw-semibold text-{{ r.interpretation.couleur }}">
+                {{ r.interpretation.classe }}
+              </span>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <div class="mt-3 pt-2 border-top" style="font-size:.8rem;color:#6c757d">
+              <div><i class="bi bi-stack me-1"></i><strong>Bandes :</strong> {{ r.bandes }}</div>
+              <div><i class="bi bi-arrow-left-right me-1"></i><strong>Plage :</strong> {{ r.plage }}</div>
+              <div class="mt-1"><i class="bi bi-lightbulb me-1"></i>{{ r.usage }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Tableau récapitulatif -->
+    <div class="card shadow-sm mt-4">
+      <div class="card-header fw-bold bg-light">
+        <i class="bi bi-table me-2"></i>Récapitulatif
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-dark">
+            <tr><th>Indice</th><th>Valeur</th><th>Interprétation</th><th>Plage</th><th>Sahel</th></tr>
+          </thead>
+          <tbody>
+            {% for r in resultats %}
+            <tr>
+              <td><span class="badge bg-{{ r.badge_color }}">{{ r.nom }}</span></td>
+              <td>
+                {% if r.valeur is not none %}
+                <strong class="text-{{ r.interpretation.couleur }}">{{ "%.4f"|format(r.valeur) }}</strong>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td>
+                {% if r.interpretation %}
+                <i class="bi bi-{{ r.interpretation.icone }} text-{{ r.interpretation.couleur }} me-1"></i>
+                {{ r.interpretation.classe }}
+                {% else %}—{% endif %}
+              </td>
+              <td><small class="text-muted">{{ r.plage }}</small></td>
+              <td>
+                {% if r.get('sahel') %}
+                <span class="badge badge-sahel"><i class="bi bi-star-fill me-1"></i>Indispensable</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Contexte saisie -->
+    <div class="alert alert-light border mt-3" style="font-size:.84rem">
+      <i class="bi bi-info-circle text-primary me-2"></i>
+      <strong>Valeurs utilisées :</strong>
+      NIR = <code>{{ valeurs.nir }}</code> ·
+      Red = <code>{{ valeurs.red }}</code> ·
+      Blue = <code>{{ valeurs.blue }}</code> ·
+      L (SAVI) = <code>{{ valeurs.L_savi }}</code>
+    </div>
+
+    {# ── ÉTAT VIDE ── #}
+    {% else %}
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-flower2 text-success" style="font-size:3.5rem"></i>
+        <h5 class="mt-3 text-muted">Calculez les indices de végétation</h5>
+        <p class="text-muted small mb-4">
+          Saisie manuelle de réflectances ou traitement d'une image satellite GeoTIFF.
+        </p>
+        <div class="row g-2 mt-2 text-start" style="max-width:640px;margin:auto">
+          {% for label, formula, desc, color, sahel in [
+            ('NDVI','(NIR − Red) / (NIR + Red)','Indice de végétation universel','success',true),
+            ('SAVI','[(NIR − Red) / (NIR + Red + L)] × (1+L)','Adapté aux sols sahéliens','success',true),
+            ('EVI','2.5 × (NIR − Red) / (NIR + 6·Red − 7.5·Blue + 1)','Correction atmosphérique','info',false),
+            ('MSAVI2','[2·NIR + 1 − √((2·NIR+1)² − 8(NIR−Red))] / 2','Auto-ajustement du sol','secondary',false),
+          ] %}
+          <div class="col-12 col-md-6">
+            <div class="card border-0 bg-light h-100">
+              <div class="card-body p-2">
+                <div class="d-flex align-items-center gap-1 mb-1">
+                  <span class="badge bg-{{ color }}">{{ label }}</span>
+                  {% if sahel %}
+                  <span class="badge badge-sahel" style="font-size:.65rem">
+                    <i class="bi bi-star-fill me-1"></i>Sahel
+                  </span>
+                  {% endif %}
+                </div>
+                <div class="formula-box" style="font-size:.78rem">{{ formula }}</div>
+                <small class="text-muted">{{ desc }}</small>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+  <!-- /col droite -->
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Spinner au submit saisie manuelle ──
+document.getElementById('form-veg').addEventListener('submit', function () {
+  const btn = document.getElementById('btn-calc');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Calcul en cours…';
+  btn.disabled = true;
+});
+
+// ── Spinner au submit image satellite ──
+document.getElementById('form-raster-veg').addEventListener('submit', function () {
+  const btn = document.getElementById('btn-raster-veg');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement image…';
+  btn.disabled = true;
+});
+
+// ── Visibilité section Blue selon sélection EVI ──
+function updateBlueVisibility() {
+  const eviChecked = document.getElementById('chk_EVI_r') &&
+                     document.getElementById('chk_EVI_r').checked;
+  const section = document.getElementById('blue-section');
+  if (section) {
+    section.style.opacity = eviChecked ? '1' : '0.5';
+  }
+}
+updateBlueVisibility();
+
+// ── Préréglages satellites (numéros de bandes) ──
+const PRESETS = {
+  's2':  { nir: 1, red: 1, blue: 1, hint_nir: 'S2 B8 (~842nm)', hint_red: 'S2 B4 (~665nm)' },
+  'l89': { nir: 5, red: 4, blue: 2, hint_nir: 'L8/9 B5 (~865nm)', hint_red: 'L8/9 B4 (~655nm)' },
+  'l57': { nir: 4, red: 3, blue: 1, hint_nir: 'L5/7 B4 (~835nm)', hint_red: 'L5/7 B3 (~661nm)' },
+};
+
+function setPreset(el, key) {
+  const p = PRESETS[key];
+  if (!p) return;
+  const nirEl  = document.getElementById('nir_bande');
+  const redEl  = document.getElementById('red_bande');
+  const blueEl = document.getElementById('blue_bande');
+  if (nirEl)  nirEl.value  = p.nir;
+  if (redEl)  redEl.value  = p.red;
+  if (blueEl) blueEl.value = p.blue;
+  // Feedback visuel
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.remove('bg-success', 'text-white', 'border-success');
+  });
+  el.classList.add('bg-success', 'text-white', 'border-success');
+}
+</script>
+{% endblock %}

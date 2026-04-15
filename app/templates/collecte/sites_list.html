@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Sites vulnérables — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-geo-alt me-2 text-warning"></i>Sites Vulnérables</h4>
+        <small class="text-muted">Zones à risque environnemental identifiées</small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.sites_export_pdf') }}" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        </a>
+        <a href="{{ url_for('collecte.site_nouveau') }}" class="btn btn-warning btn-sm text-dark">
+          <i class="bi bi-plus-circle me-1"></i>Nouveau site
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filtre vulnérabilité -->
+<div class="d-flex gap-2 mb-3">
+  {% for niv, cls in [('','outline-secondary'),('Critique','danger'),('Élevé','warning'),('Moyen','primary'),('Faible','success')] %}
+  <a href="{{ url_for('collecte.sites_list') }}{% if niv %}?niveau={{ niv }}{% endif %}"
+     class="btn btn-sm btn-{{ 'outline-secondary' if niveau != niv else cls }} {% if not niv and niv == niveau %}active{% endif %}
+            {% if niv == 'Élevé' and niveau == 'Élevé' %}btn-warning{% endif %}">
+    {{ niv or 'Tous' }}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Réf.</th><th>Nom</th><th>Type</th><th>Zone</th>
+            <th>Superficie</th><th>Vulnérabilité</th><th>Score</th><th>Surveillance</th><th class="text-center">Carte</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sites.items %}
+          <tr>
+            <td><small class="text-muted fw-semibold">{{ s.reference }}</small></td>
+            <td><span class="fw-semibold">{{ s.nom[:40] }}</span></td>
+            <td><small>{{ s.type_site or '—' }}</small></td>
+            <td><small>{{ s.zone or '—' }}</small></td>
+            <td><small>{{ "%.0f"|format(s.superficie_ha or 0) }} ha</small></td>
+            <td>
+              <span class="badge bg-{{ 'danger' if s.niveau_vulnerabilite in ['Critique','Élevé'] else 'warning text-dark' if s.niveau_vulnerabilite == 'Moyen' else 'success' }}">
+                {{ s.niveau_vulnerabilite or '—' }}
+              </span>
+            </td>
+            <td>
+              <div class="progress" style="height:8px; width:60px">
+                <div class="progress-bar bg-{{ 'danger' if (s.score_vulnerabilite or 0) > 75 else 'warning' if (s.score_vulnerabilite or 0) > 50 else 'success' }}"
+                     style="width:{{ s.score_vulnerabilite or 0 }}%"></div>
+              </div>
+              <small class="text-muted">{{ s.score_vulnerabilite or 0 }}/100</small>
+            </td>
+            <td><small>{{ s.frequence_surveillance or '—' }}</small></td>
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{{ url_for('collecte.site_detail', id=s.id) }}"
+                   class="btn btn-sm btn-outline-secondary py-0 px-1" title="Voir le détail">
+                  <i class="bi bi-eye" style="font-size:.8rem"></i>
+                </a>
+                {% if s.statut != 'archive' %}
+                <form method="POST" action="{{ url_for('collecte.site_changer_statut', id=s.id) }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="statut"
+                         value="{{ 'surveille' if s.statut == 'actif' else 'archive' }}">
+                  <button class="btn btn-sm btn-{{ 'outline-warning' if s.statut == 'actif' else 'outline-secondary' }} py-0 px-1"
+                          style="font-size:.75rem"
+                          title="{{ 'Passer en surveillance' if s.statut == 'actif' else 'Archiver' }}">
+                    <i class="bi bi-{{ 'eye-fill' if s.statut == 'actif' else 'archive' }}"></i>
+                  </button>
+                </form>
+                {% endif %}
+                {% if s.latitude and s.longitude %}
+                <a href="{{ url_for('cartographie.index') }}?lat={{ s.latitude }}&lng={{ s.longitude }}&zoom=13&popup={{ s.nom|urlencode }}"
+                   class="btn btn-sm btn-outline-warning py-0 px-1" title="Voir sur la carte" target="_blank">
+                  <i class="bi bi-map" style="font-size:.8rem"></i>
+                </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-center py-4 text-muted">
+            Aucun site répertorié. <a href="{{ url_for('collecte.site_nouveau') }}">Ajouter le premier</a>
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

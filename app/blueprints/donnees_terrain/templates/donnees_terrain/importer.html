@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Importer données terrain — VégéSuivi Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Zone de dépôt ── */
+  .drop-zone {
+    border: 3px dashed #adb5bd; border-radius: 12px;
+    padding: 40px 20px; text-align: center;
+    background: #f8f9fa; cursor: pointer;
+    transition: all .25s ease;
+  }
+  .drop-zone.dragging, .drop-zone:hover {
+    border-color: #0d6efd; background: #e8f0fe;
+  }
+  .drop-zone.has-files {
+    border-color: #198754; background: #f0fff4;
+  }
+  .drop-zone .drop-icon {
+    font-size: 3.5rem; color: #adb5bd; transition: color .2s;
+  }
+  .drop-zone.dragging .drop-icon,
+  .drop-zone.has-files .drop-icon { color: #0d6efd; }
+  .drop-zone.has-files .drop-icon { color: #198754; }
+
+  /* ── Fichiers listés ── */
+  .file-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; background: #fff;
+    border: 1px solid #dee2e6; border-radius: 8px;
+    margin-bottom: 6px;
+  }
+  .file-item .file-ext {
+    font-size: .7rem; font-weight: 700; min-width: 36px; text-align: center;
+    padding: 2px 4px; border-radius: 4px;
+    background: #0d6efd; color: #fff;
+  }
+  .file-item .file-ext.ext-shp { background: #0d6efd; }
+  .file-item .file-ext.ext-dbf { background: #198754; }
+  .file-item .file-ext.ext-shx { background: #6c757d; }
+  .file-item .file-ext.ext-prj { background: #ffc107; color: #000; }
+  .file-item .file-ext.ext-zip { background: #e74c3c; }
+  .file-item .file-ext.ext-cpg { background: #0dcaf0; color: #000; }
+
+  /* ── Onglets mode ── */
+  .mode-card {
+    cursor: pointer; border: 2px solid #dee2e6; border-radius: 12px;
+    padding: 18px; text-align: center; transition: all .2s;
+  }
+  .mode-card:hover { border-color: #0d6efd; background: #f0f5ff; }
+  .mode-card.selected { border-color: #0d6efd; background: #e8f0fe; }
+  .mode-card .mode-icon { font-size: 2rem; }
+
+  /* ── Aide format ── */
+  .format-badge {
+    display: inline-block; font-family: monospace; font-size: .82rem;
+    background: #e9ecef; border-radius: 4px; padding: 2px 8px;
+    margin: 2px; color: #495057;
+  }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold">
+          <i class="bi bi-cloud-upload me-2 text-primary"></i>Importer des données terrain
+        </h4>
+        <small class="text-muted">Shapefile (.shp) — Formats : ZIP ou fichiers individuels</small>
+      </div>
+      <a href="{{ url_for('donnees_terrain.index') }}"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Retour
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4 justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-7">
+
+    {% if erreur %}
+    <div class="alert alert-danger shadow-sm">
+      <i class="bi bi-x-circle me-2"></i><strong>Erreur d'import :</strong> {{ erreur }}
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+
+        <!-- ── Sélection du mode ── -->
+        <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:.75rem">
+          <i class="bi bi-toggles me-1"></i>Mode d'envoi
+        </h6>
+        <div class="row g-3 mb-4">
+          <div class="col-6">
+            <div class="mode-card selected" id="mode-zip-card" onclick="setMode('zip')">
+              <div class="mode-icon"><i class="bi bi-file-zip text-danger"></i></div>
+              <div class="fw-semibold mt-1">Archive ZIP</div>
+              <small class="text-muted">Recommandé — toutes les composantes dans un .zip</small>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="mode-card" id="mode-fichiers-card" onclick="setMode('fichiers')">
+              <div class="mode-icon"><i class="bi bi-files text-primary"></i></div>
+              <div class="fw-semibold mt-1">Fichiers séparés</div>
+              <small class="text-muted">Sélectionnez .shp + .dbf + .shx en même temps</small>
+            </div>
+          </div>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" id="import-form" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="mode_upload" id="mode_upload" value="zip">
+
+          <!-- ── Zone de dépôt ZIP ── -->
+          <div id="zone-zip">
+            <div class="drop-zone" id="drop-zip"
+                 onclick="document.getElementById('input-zip').click()">
+              <i class="bi bi-file-zip drop-icon"></i>
+              <div class="fw-semibold mt-2">Déposez votre fichier ZIP ici</div>
+              <div class="text-muted small mt-1">ou cliquez pour sélectionner</div>
+              <div id="zip-name" class="mt-3 text-success fw-semibold" style="display:none"></div>
+            </div>
+            <input type="file" id="input-zip" name="fichier_zip"
+                   accept=".zip" class="d-none" onchange="afficherFichierZip(this)">
+            <div class="mt-2 text-muted small text-center">
+              Le ZIP doit contenir : <span class="format-badge">.shp</span>
+              <span class="format-badge">.dbf</span>
+              <span class="format-badge">.shx</span>
+              + optionnel : <span class="format-badge">.prj</span>
+              <span class="format-badge">.cpg</span>
+            </div>
+          </div>
+
+          <!-- ── Zone multi-fichiers ── -->
+          <div id="zone-fichiers" style="display:none">
+            <div class="drop-zone" id="drop-multi"
+                 onclick="document.getElementById('input-fichiers').click()">
+              <i class="bi bi-collection drop-icon"></i>
+              <div class="fw-semibold mt-2">Déposez les fichiers du Shapefile ici</div>
+              <div class="text-muted small mt-1">
+                Sélectionnez le .shp, .dbf et .shx en même temps (Ctrl+clic)
+              </div>
+            </div>
+            <input type="file" id="input-fichiers" name="fichiers_shp"
+                   multiple accept=".shp,.dbf,.shx,.prj,.cpg,.sbn,.sbx"
+                   class="d-none" onchange="afficherFichiersMultiples(this)">
+            <div id="liste-fichiers" class="mt-3"></div>
+          </div>
+
+          <hr class="my-4">
+
+          <!-- ── Métadonnées ── -->
+          <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:.75rem">
+            <i class="bi bi-card-text me-1"></i>Informations de la couche
+          </h6>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              Nom de la couche <span class="text-danger">*</span>
+            </label>
+            <input type="text" name="nom" id="nom-couche"
+                   class="form-control" required
+                   placeholder="Ex : Parcelles protégées — Zone Nord 2024">
+            <small class="text-muted">Laissez vide pour utiliser le nom du fichier.</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description</label>
+            <textarea name="description" class="form-control" rows="2"
+                      placeholder="Contexte, méthode de collecte, zone géographique…"></textarea>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Source / Mission terrain</label>
+              <input type="text" name="source" class="form-control"
+                     placeholder="Ex : Mission Mars 2024 — DRE">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Date d'acquisition terrain</label>
+              <input type="date" name="date_acquisition" class="form-control">
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1" id="btn-importer">
+              <i class="bi bi-cloud-upload me-2"></i>Importer la couche
+            </button>
+            <a href="{{ url_for('donnees_terrain.index') }}"
+               class="btn btn-outline-secondary">
+              Annuler
+            </a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- Aide rapide -->
+    <div class="card shadow-sm border-0 mt-3">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-2">
+          <i class="bi bi-question-circle text-primary me-2"></i>Comment créer un ZIP valide ?
+        </h6>
+        <ol class="mb-0 small text-muted ps-3">
+          <li>Sélectionnez tous les fichiers du Shapefile dans votre explorateur
+              (<code>.shp</code> <code>.dbf</code> <code>.shx</code> et éventuellement
+              <code>.prj</code> <code>.cpg</code>).</li>
+          <li>Clic droit → <strong>Compresser en ZIP</strong> (Windows) ou
+              <strong>Archiver</strong> (Mac).</li>
+          <li>Importez le fichier ZIP obtenu.</li>
+        </ol>
+        <div class="mt-2 alert alert-info py-2 mb-0 small">
+          <i class="bi bi-info-circle me-1"></i>
+          Taille maximale : <strong>50 Mo</strong>.
+          Projections supportées : WGS 84 (EPSG:4326) recommandé, mais toutes sont acceptées.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Sélection du mode ─────────────────────────────────────────────────────
+function setMode(mode) {
+  document.getElementById('mode_upload').value = mode;
+  document.getElementById('zone-zip').style.display     = mode === 'zip'      ? '' : 'none';
+  document.getElementById('zone-fichiers').style.display = mode === 'fichiers' ? '' : 'none';
+  document.getElementById('mode-zip-card').classList.toggle('selected', mode === 'zip');
+  document.getElementById('mode-fichiers-card').classList.toggle('selected', mode === 'fichiers');
+}
+
+// ── Affichage fichier ZIP ─────────────────────────────────────────────────
+function afficherFichierZip(input) {
+  const zone = document.getElementById('drop-zip');
+  const label = document.getElementById('zip-name');
+  if (input.files.length > 0) {
+    const f = input.files[0];
+    zone.classList.add('has-files');
+    label.style.display = '';
+    const size = f.size < 1048576 ? (f.size/1024).toFixed(1) + ' Ko' : (f.size/1048576).toFixed(1) + ' Mo';
+    label.innerHTML = `<i class="bi bi-check-circle me-1"></i>${f.name} <span class="text-muted">(${size})</span>`;
+    // Auto-remplir le nom si vide
+    const nomInput = document.getElementById('nom-couche');
+    if (!nomInput.value.trim()) {
+      nomInput.value = f.name.replace(/\.zip$/i, '').replace(/[_-]/g, ' ');
+    }
+  } else {
+    zone.classList.remove('has-files');
+    label.style.display = 'none';
+  }
+}
+
+// ── Affichage multi-fichiers ──────────────────────────────────────────────
+function afficherFichiersMultiples(input) {
+  const liste = document.getElementById('liste-fichiers');
+  const zone = document.getElementById('drop-multi');
+  liste.innerHTML = '';
+  if (!input.files.length) return;
+
+  zone.classList.add('has-files');
+  const colours = { shp:'ext-shp', dbf:'ext-dbf', shx:'ext-shx',
+                    prj:'ext-prj', zip:'ext-zip', cpg:'ext-cpg' };
+
+  Array.from(input.files).forEach(f => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    const size = f.size < 1048576 ? (f.size/1024).toFixed(0) + ' Ko' : (f.size/1048576).toFixed(1) + ' Mo';
+    const extClass = colours[ext] || '';
+    liste.innerHTML += `
+      <div class="file-item">
+        <span class="file-ext ${extClass}">.${ext.toUpperCase()}</span>
+        <span class="flex-grow-1 text-truncate small">${f.name}</span>
+        <span class="text-muted small">${size}</span>
+      </div>`;
+  });
+
+  // Auto-remplir nom
+  const shpFile = Array.from(input.files).find(f => f.name.toLowerCase().endsWith('.shp'));
+  if (shpFile) {
+    const nomInput = document.getElementById('nom-couche');
+    if (!nomInput.value.trim()) {
+      nomInput.value = shpFile.name.replace(/\.shp$/i,'').replace(/[_-]/g,' ');
+    }
+  }
+}
+
+// ── Drag & Drop ───────────────────────────────────────────────────────────
+function setupDragDrop(dropZoneId, inputId, handler) {
+  const zone = document.getElementById(dropZoneId);
+  const input = document.getElementById(inputId);
+  if (!zone || !input) return;
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('dragging');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragging');
+    if (e.dataTransfer.files.length) {
+      // Transférer les fichiers dans l'input (via DataTransfer)
+      try {
+        const dt = new DataTransfer();
+        Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
+        input.files = dt.files;
+        handler(input);
+      } catch(err) {
+        console.warn('DataTransfer non supporté, utilisez le sélecteur.');
+      }
+    }
+  });
+}
+
+setupDragDrop('drop-zip', 'input-zip', afficherFichierZip);
+setupDragDrop('drop-multi', 'input-fichiers', afficherFichiersMultiples);
+
+// ── Spinner au submit ─────────────────────────────────────────────────────
+document.getElementById('import-form').addEventListener('submit', function () {
+  const btn = document.getElementById('btn-importer');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Import en cours…';
+  btn.disabled = true;
+});
+</script>
+{% endblock %}

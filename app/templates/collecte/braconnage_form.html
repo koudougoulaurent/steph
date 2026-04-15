@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Nouvel indicateur de braconnage — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle me-2 text-danger"></i>
+      Enregistrer un indicateur de braconnage
+    </h4>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-9">
+    <div class="card shadow-sm">
+      <div class="card-header bg-danger text-white">
+        <h6 class="mb-0"><i class="bi bi-shield-x me-2"></i>Fiche indicateur de braconnage</h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Date constat <span class="text-danger">*</span></label>
+              <input type="date" name="date_constat" class="form-control" required>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Type d'indicateur <span class="text-danger">*</span></label>
+              <select name="type_indicateur" class="form-select" required>
+                <option value="">— Sélectionner —</option>
+                <option>Piège</option><option>Collet</option><option>Campement</option>
+                <option>Cadavre animal</option><option>Coupe illégale</option>
+                <option>Charbon</option><option>Piste suspecte</option>
+                <option>Trafic d'espèces</option><option>Exploitation minière illégale</option><option>Autre</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Zone <span class="text-danger">*</span></label>
+              <input type="text" name="zone" class="form-control" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Latitude</label>
+              <input type="number" name="latitude" class="form-control" step="0.000001" id="lat_br">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Longitude</label>
+              <input type="number" name="longitude" class="form-control" step="0.000001" id="lon_br">
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Niveau de gravité</label>
+              <select name="niveau_gravite" class="form-select">
+                <option>Mineur</option><option>Modéré</option>
+                <option>Grave</option><option>Critique</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Espèces concernées</label>
+              <input type="text" name="especes_concernees" class="form-control"
+                     placeholder="Ex : Éléphant, Buffle, Pangolin…">
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Quantité estimée</label>
+              <input type="number" name="quantite_estimee" class="form-control" min="0">
+            </div>
+            <div class="col-md-4">
+              <div class="form-check mt-4">
+                <input class="form-check-input" type="checkbox" name="saisies_effectuees" id="saisies">
+                <label class="form-check-label fw-semibold" for="saisies">Saisies effectuées</label>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Nombre d'arrestations</label>
+              <input type="number" name="arrestations" class="form-control" min="0">
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">N° PV / Déposition</label>
+              <input type="text" name="numero_pv" class="form-control">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Statut du dossier</label>
+              <select name="statut" class="form-select">
+                <option value="nouveau">Nouveau</option>
+                <option value="en_cours">En cours de traitement</option>
+                <option value="transmis">Transmis aux autorités</option>
+                <option value="traite">Traité / Clôturé</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Description détaillée des observations</label>
+            <textarea name="description" class="form-control" rows="4"
+                      placeholder="Décrivez les indices, les circonstances, les preuves collectées…"></textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger px-4">
+              <i class="bi bi-check-circle me-2"></i>Enregistrer
+            </button>
+            <a href="{{ url_for('collecte.braconnage_list') }}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Annuler
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

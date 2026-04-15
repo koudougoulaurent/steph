@@ -1,0 +1,286 @@
+/* ============================================================
+   VégéSuivi Pro — Feuille de style principale
+   Direction Régionale de l'Environnement
+   ============================================================ */
+
+/* ---------- Variables & Palette ---------- */
+:root {
+  --vs-green:        #1a6b3c;
+  --vs-green-mid:    #2d8a4e;
+  --vs-green-light:  #e8f5ee;
+  --vs-gold:         #e8a020;
+  --vs-dark:         #1a2332;
+  --vs-text:         #2d3748;
+  --vs-muted:        #6c757d;
+  --vs-border:       #dee2e6;
+  --vs-bg:           #f4f6f8;
+  --navbar-height:   60px;
+  --sidebar-width:   0px;
+  --card-radius:     10px;
+  --shadow-sm:       0 1px 4px rgba(0,0,0,.08);
+  --shadow-md:       0 3px 12px rgba(0,0,0,.12);
+}
+
+/* ---------- Base layout ---------- */
+body {
+  background-color: var(--vs-bg);
+  color: var(--vs-text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: .93rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  padding-top: calc(var(--navbar-height) + 1rem);
+  padding-bottom: 4rem;
+  flex: 1;
+}
+
+/* ---------- Navbar ---------- */
+.navbar {
+  height: var(--navbar-height);
+  background: linear-gradient(135deg, var(--vs-dark) 0%, var(--vs-green) 100%) !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,.25);
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--vs-green-light);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.navbar .nav-link {
+  color: rgba(255,255,255,.85) !important;
+  font-size: .88rem;
+  font-weight: 500;
+  padding: .45rem .75rem !important;
+  border-radius: 6px;
+  transition: background .2s, color .2s;
+}
+.navbar .nav-link:hover,
+.navbar .nav-link.active {
+  background: rgba(255,255,255,.15) !important;
+  color: #fff !important;
+}
+
+.navbar .dropdown-menu {
+  border: none;
+  box-shadow: var(--shadow-md);
+  border-radius: var(--card-radius);
+  font-size: .875rem;
+  min-width: 220px;
+}
+
+/* ---------- Page header bar ---------- */
+.page-header-bar {
+  background: #fff;
+  border-bottom: 2px solid var(--vs-green-light);
+  padding: .85rem 0;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+.page-header-bar h4 { color: var(--vs-dark); }
+
+/* ---------- Cards ---------- */
+.card {
+  border: none;
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-sm);
+}
+.card-header {
+  border-radius: var(--card-radius) var(--card-radius) 0 0 !important;
+  font-size: .9rem;
+}
+
+/* ---------- KPI Cards ---------- */
+.kpi-card {
+  transition: transform .2s, box-shadow .2s;
+  border-left: 4px solid var(--vs-green);
+}
+.kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+.kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.kpi-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.kpi-label {
+  font-size: .78rem;
+  color: var(--vs-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 500;
+}
+
+/* ---------- Tables ---------- */
+.table th {
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 600;
+}
+.table td { vertical-align: middle; }
+
+/* ---------- Badges ---------- */
+.badge { font-weight: 500; letter-spacing: .02em; }
+
+/* ---------- Forms ---------- */
+.form-label { font-size: .875rem; margin-bottom: .35rem; }
+.form-control, .form-select {
+  border-radius: 7px;
+  font-size: .9rem;
+  border-color: var(--vs-border);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--vs-green-mid);
+  box-shadow: 0 0 0 .2rem rgba(45,138,78,.2);
+}
+
+/* ---------- Buttons ---------- */
+.btn { border-radius: 7px; font-size: .875rem; font-weight: 500; }
+.btn-xs { font-size: .75rem; padding: .15rem .5rem; border-radius: 5px; }
+
+.btn-primary   { background-color: #0d6efd; border-color: #0d6efd; }
+.btn-success   { background-color: var(--vs-green-mid); border-color: var(--vs-green-mid); }
+.btn-success:hover { background-color: var(--vs-green); border-color: var(--vs-green); }
+
+/* ---------- Avatar ---------- */
+.avatar-sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: .8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vs-green);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ---------- Map helpers ---------- */
+.legend-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,.15);
+}
+
+/* ---------- Leaflet override ---------- */
+.leaflet-container { font-family: inherit; }
+.leaflet-popup-content-wrapper {
+  border-radius: 10px !important;
+  font-size: .85rem;
+}
+
+/* ---------- Footer ---------- */
+.footer-bar {
+  background: var(--vs-dark);
+  color: rgba(255,255,255,.6);
+  padding: .85rem 1.5rem;
+  font-size: .8rem;
+  margin-top: auto;
+}
+
+/* ---------- Alerts ---------- */
+.alert { border-radius: var(--card-radius); border-width: 0 0 0 4px; }
+
+/* ---------- Progress bars (thin) ---------- */
+.progress { border-radius: 10px; }
+.progress-bar { border-radius: 10px; }
+
+/* ---------- Dashboard chart containers ---------- */
+.chart-container { position: relative; height: 280px; }
+
+/* ---------- Print styles ---------- */
+@media print {
+  .navbar, .page-header-bar, .footer-bar, .btn,
+  .no-print { display: none !important; }
+  .main-content { padding-top: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid #dee2e6 !important; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  /* KPI cards */
+  .kpi-value { font-size: 1.3rem; }
+  .kpi-icon  { width: 40px; height: 40px; }
+
+  /* Page header */
+  .page-header-bar { padding: .5rem 0; }
+  .page-header-bar h4 { font-size: .95rem; }
+  .page-header-bar .btn { font-size: .8rem; padding: .3rem .6rem; }
+
+  /* Navbar brand: masquer le texte long sur petit écran */
+  .navbar-brand span.brand-text { display: none; }
+  .navbar-brand span.brand-short { display: inline !important; }
+
+  /* Sidebar non pertinente sur mobile → pleine largeur */
+  .sidebar { display: none; }
+  .main-content { padding-top: 70px; }
+
+  /* Tableaux défilables horizontalement */
+  .table-responsive-mobile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Formulaires : champs full-width sur mobile */
+  .form-mobile-full .col-md-6,
+  .form-mobile-full .col-md-4,
+  .form-mobile-full .col-md-3 { flex: 0 0 100%; max-width: 100%; }
+
+  /* Cartes empilées */
+  .card-deck-mobile { flex-direction: column; }
+
+  /* Boutons d'action groupés */
+  .btn-group-mobile { display: flex; flex-direction: column; gap: .4rem; }
+  .btn-group-mobile .btn { width: 100%; }
+
+  /* Footer compact */
+  .footer-bar { font-size: .75rem; text-align: center; padding: .5rem 0; }
+  .footer-bar .row { flex-direction: column; text-align: center !important; }
+  .footer-bar .text-end { text-align: center !important; }
+
+  /* Cartes carte Leaflet */
+  .map-container { height: 250px !important; }
+
+  /* Modals plein écran sur mobile */
+  .modal-dialog { margin: .5rem; }
+
+  /* Alert compact */
+  .alert { font-size: .875rem; }
+}
+
+/* Petits écrans (576px et moins) */
+@media (max-width: 576px) {
+  .kpi-card { padding: 1rem !important; }
+  .kpi-value { font-size: 1.1rem; }
+  .page-header-bar h4 { font-size: .85rem; }
+  .chart-container { height: 200px; }
+  h1, .h1 { font-size: 1.4rem; }
+  h2, .h2 { font-size: 1.2rem; }
+  .card-body.p-4 { padding: 1rem !important; }
+  .d-flex.gap-2.flex-wrap { gap: .3rem !important; }
+}
+
+/* ─── Classe utilitaire pour les tables mobiles ─────── */
+.table-mobile-scroll { display: block; overflow-x: auto; white-space: nowrap; }
+

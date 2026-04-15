@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Feux de brousse — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-fire me-2 text-danger"></i>Feux de brousse</h4>
+        <small class="text-muted">Suivi et enregistrement des incendies</small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.feux_export_pdf') }}" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        </a>
+        <a href="{{ url_for('collecte.feu_nouveau') }}" class="btn btn-danger btn-sm">
+          <i class="bi bi-plus-circle me-1"></i>Signaler un feu
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Référence</th>
+            <th>Date</th>
+            <th>Zone</th>
+            <th>Village</th>
+            <th>Superficie</th>
+            <th>Intensité</th>
+            <th>Cause</th>
+            <th>Impact</th>
+            <th>Statut</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in feux.items %}
+          <tr>
+            <td><small class="fw-semibold text-muted">{{ f.reference }}</small></td>
+            <td><small>{{ f.date_debut.strftime('%d/%m/%Y') }}</small></td>
+            <td><small>{{ f.zone }}</small></td>
+            <td><small>{{ f.village_proche or '—' }}</small></td>
+            <td>
+              <span class="badge bg-{{ 'danger' if (f.superficie_brulee_ha or 0) > 500 else 'warning text-dark' if (f.superficie_brulee_ha or 0) > 100 else 'success' }}">
+                {{ "%.0f"|format(f.superficie_brulee_ha or 0) }} ha
+              </span>
+            </td>
+            <td>
+              <span class="badge bg-{{ 'danger' if f.intensite == 'Très fort' else 'warning text-dark' if f.intensite in ['Fort','Moyen'] else 'success' }}">
+                {{ f.intensite or '—' }}
+              </span>
+            </td>
+            <td><small>{{ f.cause or '—' }}</small></td>
+            <td><small>{{ f.impact_faune or '—' }}</small></td>
+            <td>
+              <span class="badge bg-{{ 'success' if f.statut == 'éteint' else 'warning text-dark' if f.statut == 'surveille' else 'danger' }}">
+                {{ f.statut }}
+              </span>
+            </td>
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{{ url_for('collecte.feu_detail', id=f.id) }}"
+                   class="btn btn-sm btn-outline-secondary py-0 px-1" title="Voir le détail">
+                  <i class="bi bi-eye" style="font-size:.8rem"></i>
+                </a>
+                {% if f.statut != 'éteint' %}
+                <form method="POST" action="{{ url_for('collecte.feu_changer_statut', id=f.id) }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="statut"
+                         value="{{ 'surveille' if f.statut == 'en_cours' else 'éteint' }}">
+                  <button class="btn btn-sm btn-{{ 'outline-warning' if f.statut == 'en_cours' else 'outline-success' }} py-0 px-1"
+                          style="font-size:.75rem"
+                          title="{{ 'Passer en surveillance' if f.statut == 'en_cours' else 'Marquer éteint' }}">
+                    <i class="bi bi-{{ 'eye-fill' if f.statut == 'en_cours' else 'check-circle' }}"></i>
+                  </button>
+                </form>
+                {% endif %}
+                {% if f.latitude and f.longitude %}
+                <a href="{{ url_for('cartographie.index') }}?lat={{ f.latitude }}&lng={{ f.longitude }}&zoom=13&popup={{ f.reference|urlencode }}"
+                   class="btn btn-sm btn-outline-danger py-0 px-1" title="Voir sur la carte" target="_blank">
+                  <i class="bi bi-map" style="font-size:.8rem"></i>
+                </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-center py-4 text-muted">
+            <i class="bi bi-info-circle fs-3 d-block mb-2"></i>
+            Aucun feu enregistré. <a href="{{ url_for('collecte.feu_nouveau') }}">Signaler le premier</a>
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if feux.pages > 1 %}
+    <div class="d-flex justify-content-center py-3">
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          {% for p in feux.iter_pages() %}
+            {% if p %}
+              <li class="page-item {% if p == feux.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

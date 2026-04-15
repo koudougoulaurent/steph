@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Modifier' if utilisateur else 'Nouvel' }} utilisateur — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold">
+      <i class="bi bi-person-{{ 'gear' if utilisateur else 'plus' }} me-2 text-primary"></i>
+      {{ 'Modifier le compte : ' + utilisateur.nom if utilisateur else 'Créer un utilisateur' }}
+    </h4>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h6 class="mb-0"><i class="bi bi-person-fill me-2"></i>Fiche compte utilisateur</h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Nom complet <span class="text-danger">*</span></label>
+              <input type="text" name="nom" class="form-control" required
+                     value="{{ utilisateur.nom if utilisateur else '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Adresse email <span class="text-danger">*</span></label>
+              <input type="email" name="email" class="form-control" required
+                     value="{{ utilisateur.email if utilisateur else '' }}">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Mot de passe
+              {% if utilisateur %}<small class="text-muted">(laisser vide pour ne pas changer)</small>{% else %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            <input type="password" name="password" class="form-control"
+                   {% if not utilisateur %}required{% endif %}
+                   autocomplete="new-password">
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Rôle <span class="text-danger">*</span></label>
+              <select name="role" class="form-select" required>
+                {% for r,desc in [('lecteur','Lecteur — consultation seule'),
+                                  ('agent','Agent — saisie de données'),
+                                  ('superviseur','Superviseur — validation + rapports'),
+                                  ('admin','Administrateur — accès total')] %}
+                <option value="{{ r }}" {{ 'selected' if utilisateur and utilisateur.role == r }}>{{ desc }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Structure / Service</label>
+              <input type="text" name="structure" class="form-control"
+                     value="{{ utilisateur.structure if utilisateur else '' }}"
+                     placeholder="Direction Régionale de l'Environnement…">
+            </div>
+          </div>
+
+          {% if utilisateur %}
+          <div class="mb-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="actif" id="actifSwitch"
+                     {% if utilisateur.actif %}checked{% endif %}>
+              <label class="form-check-label fw-semibold" for="actifSwitch">Compte actif</label>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-check-circle me-2"></i>{{ 'Mettre à jour' if utilisateur else 'Créer le compte' }}
+            </button>
+            <a href="{{ url_for('admin.utilisateurs') }}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Annuler
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

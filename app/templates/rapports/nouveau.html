@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Nouveau rapport — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-plus-circle me-2 text-success-custom"></i>Créer un nouveau rapport</h4>
+    <small class="text-muted">Configuration et génération</small>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header bg-success text-white">
+        <h6 class="mb-0"><i class="bi bi-file-earmark-plus me-2"></i>Paramètres du rapport</h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Type de rapport <span class="text-danger">*</span></label>
+              <select name="type_rapport" class="form-select" required id="typeRapport" onchange="updatePeriode()">
+                <option value="">— Sélectionner —</option>
+                <option value="mensuel">📅 Rapport mensuel</option>
+                <option value="trimestriel">📅 Rapport trimestriel</option>
+                <option value="semestriel">📅 Rapport semestriel</option>
+                <option value="annuel">📅 Rapport annuel</option>
+                <option value="thematique">🔍 Rapport thématique</option>
+                <option value="incident">⚠️ Rapport d'incident</option>
+                <option value="campagne">🗂️ Rapport de campagne</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Thème / Module</label>
+              <select name="theme" class="form-select">
+                <option value="general">Général (tous les modules)</option>
+                <option value="vegetation">Couverture végétale</option>
+                <option value="feux">Feux de brousse</option>
+                <option value="braconnage">Braconnage</option>
+                <option value="sites_vulnerables">Sites vulnérables</option>
+                <option value="terrain">Observations terrain</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Titre du rapport</label>
+            <input type="text" name="titre" class="form-control"
+                   placeholder="Laissez vide pour titre par défaut selon le type">
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-5">
+              <label class="form-label fw-semibold">Date de début <span class="text-danger">*</span></label>
+              <input type="date" name="periode_debut" id="periodeDebut" class="form-control" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label fw-semibold">Date de fin <span class="text-danger">*</span></label>
+              <input type="date" name="periode_fin" id="periodeFin" class="form-control" required>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button type="button" class="btn btn-outline-secondary w-100" onclick="updatePeriode()">
+                <i class="bi bi-calendar-check"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Zone géographique couverte</label>
+            <input type="text" name="zone_couverte" class="form-control"
+                   placeholder="Ex: Zone Nord, Zone Sahélienne, Région entière…">
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Résumé exécutif (optionnel)</label>
+            <textarea name="resume_executif" class="form-control" rows="4"
+                      placeholder="Contexte, faits saillants, recommandations principales..."></textarea>
+          </div>
+
+          <!-- Aperçu du rapport -->
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Ce rapport compilera :</strong>
+            les données de feux de brousse, sites vulnérables, indicateurs de braconnage,
+            observations terrain et couverture végétale pour la période sélectionnée.
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success px-4">
+              <i class="bi bi-check-circle me-2"></i>Créer le rapport
+            </button>
+            <a href="{{ url_for('rapports.index') }}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Annuler
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePeriode() {
+  const type = document.getElementById('typeRapport').value;
+  const now = new Date();
+  let debut, fin;
+  if (type === 'mensuel') {
+    debut = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    fin = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else if (type === 'trimestriel') {
+    const trim = Math.floor((now.getMonth()) / 3);
+    debut = new Date(now.getFullYear(), (trim - 1) * 3, 1);
+    fin = new Date(now.getFullYear(), trim * 3, 0);
+  } else if (type === 'semestriel') {
+    if (now.getMonth() < 6) {
+      debut = new Date(now.getFullYear() - 1, 6, 1);
+      fin = new Date(now.getFullYear() - 1, 11, 31);
+    } else {
+      debut = new Date(now.getFullYear(), 0, 1);
+      fin = new Date(now.getFullYear(), 5, 30);
+    }
+  } else if (type === 'annuel') {
+    debut = new Date(now.getFullYear() - 1, 0, 1);
+    fin = new Date(now.getFullYear() - 1, 11, 31);
+  }
+  if (debut && fin) {
+    document.getElementById('periodeDebut').value = debut.toISOString().split('T')[0];
+    document.getElementById('periodeFin').value = fin.toISOString().split('T')[0];
+  }
+}
+
+// Pré-remplissage depuis les paramètres URL (ex: depuis campagne_detail)
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  const dateDebut = p.get('date_debut');
+  const dateFin = p.get('date_fin');
+  const titre = p.get('titre');
+  if (dateDebut) document.getElementById('periodeDebut').value = dateDebut;
+  if (dateFin)   document.getElementById('periodeFin').value = dateFin;
+  if (titre) {
+    const titreInput = document.querySelector('input[name="titre"]');
+    if (titreInput) titreInput.value = decodeURIComponent(titre);
+    // Pré-sélectionner "Rapport de campagne"
+    const sel = document.getElementById('typeRapport');
+    if (sel) sel.value = 'campagne';
+  }
+})();
+</script>
+{% endblock %}

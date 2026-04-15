@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Nouveau site vulnérable — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-geo-alt me-2 text-warning"></i>Enregistrer un site vulnérable</h4>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-9">
+    <div class="card shadow-sm">
+      <div class="card-header bg-warning text-dark">
+        <h6 class="mb-0"><i class="bi bi-shield-exclamation me-2"></i>Fiche site vulnérable</h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-info-circle me-2"></i>Identification
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Nom du site <span class="text-danger">*</span></label>
+              <input type="text" name="nom" class="form-control" required placeholder="Ex: Forêt classée de…">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Type de site</label>
+              <select name="type_site" class="form-select">
+                <option value="">— Sélectionner —</option>
+                <option>Zone humide</option><option>Forêt classée</option>
+                <option>Réserve partielle</option><option>Sanctuaire</option>
+                <option>Corridor écologique</option><option>Source d'eau</option>
+                <option>Autre</option>
+              </select>
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-geo me-2"></i>Localisation
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Zone / Secteur <span class="text-danger">*</span></label>
+              <input type="text" name="zone" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Superficie (ha)</label>
+              <input type="number" name="superficie_ha" class="form-control" step="0.1" min="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Latitude</label>
+              <input type="number" name="latitude" class="form-control" step="0.000001" id="lat_sv">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Longitude</label>
+              <input type="number" name="longitude" class="form-control" step="0.000001" id="lon_sv">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="button" class="btn btn-outline-primary w-100" onclick="getLocSV()">
+                <i class="bi bi-crosshair me-1"></i>GPS auto
+              </button>
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-bar-chart me-2"></i>Évaluation des risques
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Niveau de vulnérabilité</label>
+              <select name="niveau_vulnerabilite" class="form-select">
+                <option>Faible</option><option>Moyen</option>
+                <option>Élevé</option><option>Critique</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Score de vulnérabilité (0–100)</label>
+              <div class="d-flex gap-2 align-items-center">
+                <input type="range" name="score_vulnerabilite" class="form-range" min="0" max="100"
+                       id="scoreRange" oninput="scoreVal.textContent=this.value">
+                <span id="scoreVal" class="badge bg-secondary" style="min-width:38px">50</span>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Pressions exercées (séparées par virgule)</label>
+              <input type="text" name="pressions" class="form-control"
+                     placeholder="Braconnage, Défrichement, Agriculture, Exploitation minière…">
+              <small class="text-muted">Listez les menaces identifiées.</small>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Espèces clés présentes</label>
+              <textarea name="especes_cles" class="form-control" rows="3"
+                        placeholder="Éléphants, Hippopotames, Lamantins…"></textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Fréquence de surveillance</label>
+              <select name="frequence_surveillance" class="form-select">
+                <option>Hebdomadaire</option><option>Bimensuelle</option>
+                <option>Mensuelle</option><option>Trimestrielle</option><option>Non définie</option>
+              </select>
+              <div class="mt-3">
+                <label class="form-label fw-semibold">Date dernière inspection</label>
+                <input type="date" name="date_derniere_inspection" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Description & contexte</label>
+            <textarea name="description" class="form-control" rows="3"
+                      placeholder="Historique, contexte écologique, enjeux particuliers…"></textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-warning text-dark px-4">
+              <i class="bi bi-check-circle me-2"></i>Enregistrer le site
+            </button>
+            <a href="{{ url_for('collecte.sites_list') }}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Annuler
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function getLocSV() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(p => {
+      document.getElementById('lat_sv').value = p.coords.latitude.toFixed(6);
+      document.getElementById('lon_sv').value = p.coords.longitude.toFixed(6);
+    });
+  }
+}
+</script>
+{% endblock %}

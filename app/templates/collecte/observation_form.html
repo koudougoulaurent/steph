@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle observation — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-binoculars me-2 text-primary"></i>Enregistrer une observation terrain</h4>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h6 class="mb-0"><i class="bi bi-eye me-2"></i>Nouvelle observation de terrain</h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" id="obs_form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Date d'observation <span class="text-danger">*</span></label>
+              <input type="date" name="date_observation" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Catégorie <span class="text-danger">*</span></label>
+              <select name="categorie" class="form-select" required>
+                <option value="">— Sélectionner —</option>
+                {% for c in ['vegetation','faune','feu','eau','sol','braconnage','infrastructure','autre'] %}
+                <option value="{{ c }}">{{ c|capitalize }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Titre court</label>
+              <input type="text" name="titre" class="form-control"
+                     placeholder="Résumé en quelques mots de l'observation…">
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-geo-alt me-2"></i>Localisation
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Zone / Secteur</label>
+              <input type="text" name="zone" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Latitude</label>
+              <input type="number" name="latitude" class="form-control" step="0.000001"
+                     id="obs_lat" oninput="updateMapMarker()">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Longitude</label>
+              <input type="number" name="longitude" class="form-control" step="0.000001"
+                     id="obs_lon" oninput="updateMapMarker()">
+            </div>
+            <div class="col-12">
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="getGpsObs()">
+                <i class="bi bi-crosshair me-1"></i>Obtenir ma position GPS
+              </button>
+              <!-- Mini-carte -->
+              <div id="obs_map" style="height:220px;border-radius:8px;margin-top:10px;border:1px solid #dee2e6"></div>
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-clipboard2 me-2"></i>Contenu de l'observation
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">État général</label>
+              <select name="etat_general" class="form-select">
+                <option value="">—</option>
+                <option>Bon</option><option>Moyen</option><option>Dégradé</option><option>Critique</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Niveau d'alerte</label>
+              <select name="niveau_alerte" class="form-select">
+                <option value="">Aucun</option>
+                <option>Info</option><option>Attention</option>
+                <option>Alerte</option><option>Urgence</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Campagne liée (optionnel)</label>
+              <select name="campagne_id" class="form-select">
+                <option value="">— Aucune —</option>
+                {% for camp in campagnes %}
+                <option value="{{ camp.id }}"
+                  {% if request.args.get('campagne_id')|int == camp.id %}selected{% endif %}>
+                  {{ camp.nom[:40] }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Description de l'observation <span class="text-danger">*</span></label>
+              <textarea name="description" class="form-control" rows="5" required
+                        placeholder="Décrivez précisément ce que vous avez observé : état de la végétation, espèces présentes, signes de dégradation, etc."></textarea>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-check-circle me-2"></i>Enregistrer
+            </button>
+            <a href="{{ url_for('collecte.observations_list') }}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Annuler
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aide -->
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm bg-light">
+      <div class="card-header fw-bold"><i class="bi bi-question-circle me-2"></i>Guide de saisie</div>
+      <div class="card-body small">
+        <ul class="mb-0">
+          <li class="mb-2"><strong>Catégorie Végétation :</strong> état du couvert, espèces présentes, densité.</li>
+          <li class="mb-2"><strong>Faune :</strong> espèces observées, empreintes, indices de présence.</li>
+          <li class="mb-2"><strong>Eau :</strong> état des cours d'eau, points d'abreuvement, turbidité.</li>
+          <li class="mb-2"><strong>Sol :</strong> érosion, ravinement, compaction.</li>
+          <li class="mb-2"><strong>Niveau d'alerte :</strong><br>
+            <span class="badge bg-info">Info</span> Observation normale<br>
+            <span class="badge bg-warning text-dark">Attention</span> Surveillance accrue<br>
+            <span class="badge bg-danger">Alerte</span> Intervention rapide<br>
+            <span class="badge bg-dark">Urgence</span> Action immédiate
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var obsMap = L.map('obs_map').setView([12.0, -2.0], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(obsMap);
+var obsMarker = null;
+
+function updateMapMarker() {
+  var lat = parseFloat(document.getElementById('obs_lat').value);
+  var lon = parseFloat(document.getElementById('obs_lon').value);
+  if (!isNaN(lat) && !isNaN(lon)) {
+    if (obsMarker) obsMap.removeLayer(obsMarker);
+    obsMarker = L.marker([lat, lon]).addTo(obsMap);
+    obsMap.setView([lat, lon], 12);
+  }
+}
+
+obsMap.on('click', function(e) {
+  document.getElementById('obs_lat').value = e.latlng.lat.toFixed(6);
+  document.getElementById('obs_lon').value = e.latlng.lng.toFixed(6);
+  updateMapMarker();
+});
+
+function getGpsObs() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(p) {
+      document.getElementById('obs_lat').value = p.coords.latitude.toFixed(6);
+      document.getElementById('obs_lon').value = p.coords.longitude.toFixed(6);
+      updateMapMarker();
+    });
+  }
+}
+</script>
+{% endblock %}

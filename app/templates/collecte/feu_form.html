@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Nouveau feu de brousse — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-fire me-2 text-danger"></i>Signaler un feu de brousse</h4>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-9">
+    <div class="card shadow-sm">
+      <div class="card-header bg-danger text-white">
+        <h6 class="mb-0"><i class="bi bi-fire me-2"></i>Nouveau signalement — Feu de brousse</h6>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-calendar3 me-2"></i>Dates
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Date début <span class="text-danger">*</span></label>
+              <input type="date" name="date_debut" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Date fin (si connue)</label>
+              <input type="date" name="date_fin" class="form-control">
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-geo-alt me-2"></i>Localisation
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Zone / Secteur <span class="text-danger">*</span></label>
+              <input type="text" name="zone" class="form-control" required placeholder="Ex: Zone Nord">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Village le plus proche</label>
+              <input type="text" name="village_proche" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Latitude GPS</label>
+              <input type="number" name="latitude" class="form-control" step="0.000001"
+                     placeholder="Ex: 12.3456" id="lat_field">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Longitude GPS</label>
+              <input type="number" name="longitude" class="form-control" step="0.000001"
+                     placeholder="Ex: -1.2345" id="lon_field">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="button" class="btn btn-outline-primary w-100" onclick="getLocation()">
+                <i class="bi bi-crosshair me-1"></i>GPS auto
+              </button>
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.8rem">
+            <i class="bi bi-info-circle me-2"></i>Caractéristiques
+          </h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Superficie brûlée (ha)</label>
+              <input type="number" name="superficie_brulee_ha" class="form-control" step="0.1" min="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Intensité</label>
+              <select name="intensite" class="form-select">
+                <option value="">— Sélectionner —</option>
+                <option>Faible</option><option>Moyen</option>
+                <option>Fort</option><option>Très fort</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Type de végétation</label>
+              <input type="text" name="type_vegetation" class="form-control" placeholder="Savane, Forêt…">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Cause probable</label>
+              <select name="cause" class="form-select">
+                <option value="">— Inconnue —</option>
+                <option>Naturelle</option><option>Agricole</option>
+                <option>Pastorale</option><option>Criminel</option><option>Inconnu</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Impact sur la faune</label>
+              <select name="impact_faune" class="form-select">
+                <option value="">— Inconnu —</option>
+                <option>Nul</option><option>Faible</option>
+                <option>Moyen</option><option>Sévère</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Signalé par</label>
+            <input type="text" name="signale_par" class="form-control"
+                   placeholder="Nom de l'agent ou de la source d'information">
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Description de l'impact</label>
+            <textarea name="description_impact" class="form-control" rows="3"
+                      placeholder="Dégâts sur les cultures, villages affectés, pertes animales..."></textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger px-4">
+              <i class="bi bi-check-circle me-2"></i>Enregistrer le signalement
+            </button>
+            <a href="{{ url_for('collecte.feux_list') }}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Annuler
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function getLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      document.getElementById('lat_field').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('lon_field').value = pos.coords.longitude.toFixed(6);
+    });
+  }
+}
+</script>
+{% endblock %}

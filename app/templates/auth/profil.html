@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Mon profil — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-person-circle me-2"></i>Mon profil</h4>
+    <small class="text-muted">Gérez vos informations personnelles et votre mot de passe</small>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="row g-3">
+
+      <!-- Infos personnelles -->
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header fw-bold bg-light">
+            <i class="bi bi-person-fill me-2 text-primary"></i>Informations personnelles
+          </div>
+          <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('auth.profil') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="profil">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Nom complet</label>
+                  <input type="text" name="nom" class="form-control"
+                         value="{{ current_user.nom }}" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Adresse email</label>
+                  <input type="email" name="email" class="form-control"
+                         value="{{ current_user.email }}" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Structure / Service</label>
+                  <input type="text" name="structure" class="form-control"
+                         value="{{ current_user.structure or '' }}"
+                         placeholder="Direction Régionale de l'Environnement…">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Rôle</label>
+                  <input type="text" class="form-control" value="{{ current_user.role }}" readonly disabled
+                         style="background:#f8f9fa">
+                  <div class="form-text">Le rôle est défini par l'administrateur.</div>
+                </div>
+              </div>
+              <div class="mt-3">
+                <button type="submit" class="btn btn-primary px-4">
+                  <i class="bi bi-check-circle me-2"></i>Mettre à jour le profil
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Changer mot de passe -->
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header fw-bold bg-light">
+            <i class="bi bi-key me-2 text-warning"></i>Changer le mot de passe
+          </div>
+          <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('auth.profil') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="password">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Mot de passe actuel</label>
+                  <input type="password" name="mdp_actuel" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Nouveau mot de passe</label>
+                  <input type="password" name="mdp_nouveau" class="form-control" required
+                         minlength="8" id="new_pwd">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Confirmer</label>
+                  <input type="password" name="mdp_confirm" class="form-control" required
+                         id="confirm_pwd" oninput="checkPwd()">
+                  <div id="pwd_msg" class="form-text"></div>
+                </div>
+              </div>
+              <div class="mt-3">
+                <button type="submit" class="btn btn-warning text-dark px-4">
+                  <i class="bi bi-shield-lock me-2"></i>Modifier le mot de passe
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activité -->
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header fw-bold bg-light">
+            <i class="bi bi-clock-history me-2 text-secondary"></i>Informations de session
+          </div>
+          <div class="card-body">
+            <dl class="row mb-0">
+              <dt class="col-sm-4 text-muted">Dernière connexion</dt>
+              <dd class="col-sm-8">
+                {{ current_user.last_login.strftime('%d/%m/%Y à %H:%M') if current_user.last_login else 'N/A' }}
+              </dd>
+              <dt class="col-sm-4 text-muted">Compte créé le</dt>
+              <dd class="col-sm-8">
+                {{ current_user.created_at.strftime('%d/%m/%Y') if current_user.created_at else 'N/A' }}
+              </dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function checkPwd() {
+  var n = document.getElementById('new_pwd').value;
+  var c = document.getElementById('confirm_pwd').value;
+  var msg = document.getElementById('pwd_msg');
+  if (c.length === 0) { msg.textContent = ''; return; }
+  if (n === c) {
+    msg.textContent = '✓ Les mots de passe correspondent.';
+    msg.className = 'form-text text-success';
+  } else {
+    msg.textContent = '✗ Les mots de passe ne correspondent pas.';
+    msg.className = 'form-text text-danger';
+  }
+}
+</script>
+{% endblock %}

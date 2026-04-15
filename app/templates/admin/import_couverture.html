@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Importer des données de couverture — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <h4 class="mb-0 fw-bold">
+      <i class="bi bi-file-earmark-arrow-up me-2 text-info"></i>
+      Importer des données de couverture végétale (CSV)
+    </h4>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Formulaire d'import -->
+  <div class="col-12 col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-header bg-info text-white fw-bold">
+        <i class="bi bi-upload me-2"></i>Fichier CSV à importer
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" enctype="multipart/form-data" action="{{ url_for('admin.import_couverture') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Fichier CSV <span class="text-danger">*</span></label>
+            <input type="file" name="fichier_csv" class="form-control" accept=".csv" required>
+            <div class="form-text">Format accepté : UTF-8, séparateur virgule ou point-virgule.</div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Séparateur CSV</label>
+            <select name="separateur" class="form-select" style="max-width:200px">
+              <option value=",">Virgule ( , )</option>
+              <option value=";">Point-virgule ( ; )</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-info text-white px-4">
+            <i class="bi bi-cloud-upload me-2"></i>Importer les données
+          </button>
+        </form>
+
+        {% if resultats %}
+        <hr>
+        <div class="alert alert-{{ 'success' if resultats.erreurs == 0 else 'warning' }}">
+          <strong>Import terminé :</strong>
+          {{ resultats.importes }} ligne(s) importée(s),
+          {{ resultats.erreurs }} erreur(s),
+          {{ resultats.ignores }} ignorée(s) (doublons).
+        </div>
+        {% if resultats.detail_erreurs %}
+        <details>
+          <summary class="text-danger small">Voir les erreurs</summary>
+          <ul class="small mt-2">
+            {% for err in resultats.detail_erreurs %}
+            <li>Ligne {{ err.ligne }} : {{ err.message }}</li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Guide format -->
+  <div class="col-12 col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-header fw-bold bg-light">
+        <i class="bi bi-question-circle me-2"></i>Format attendu du fichier CSV
+      </div>
+      <div class="card-body">
+        <p class="small mb-3">Le fichier CSV doit contenir les colonnes suivantes :</p>
+        <table class="table table-sm table-bordered small">
+          <thead class="table-light">
+            <tr><th>Colonne</th><th>Obligatoire</th><th>Exemple</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>annee</code></td><td>✅</td><td>2020</td></tr>
+            <tr><td><code>code_classe</code></td><td>✅</td><td>FOR</td></tr>
+            <tr><td><code>zone</code></td><td>✅</td><td>Zone Nord</td></tr>
+            <tr><td><code>superficie_ha</code></td><td>✅</td><td>12450.5</td></tr>
+            <tr><td><code>source</code></td><td>—</td><td>Landsat 8</td></tr>
+            <tr><td><code>methode</code></td><td>—</td><td>Télédétection</td></tr>
+          </tbody>
+        </table>
+        <p class="small text-muted mb-2">
+          <strong>Note :</strong> <code>code_classe</code> doit correspondre à un code existant dans la nomenclature.
+          Les classes inconnues seront ignorées et signalées.
+        </p>
+        <a href="{{ url_for('admin.import_couverture') }}?template=1" class="btn btn-sm btn-outline-secondary w-100">
+          <i class="bi bi-file-earmark-arrow-down me-1"></i>Télécharger le modèle CSV
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

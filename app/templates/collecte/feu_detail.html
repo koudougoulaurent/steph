@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('collecte.feux_list') }}" class="text-decoration-none">Feux de brousse</a></li>
+            <li class="breadcrumb-item active">{{ feu.reference }}</li>
+          </ol>
+        </nav>
+        <h4 class="mb-0 fw-bold mt-1">
+          <i class="bi bi-fire me-2 text-danger"></i>{{ feu.reference }}
+          <span class="badge ms-2 bg-{{ 'success' if feu.statut == 'éteint' else 'warning text-dark' if feu.statut == 'surveille' else 'danger' }}">
+            {{ feu.statut }}
+          </span>
+        </h4>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.feux_export_pdf') }}" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        </a>
+        <a href="{{ url_for('collecte.feux_list') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Retour
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- ── Fiche principale ── -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-danger text-white">
+        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informations générales</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Référence</label>
+            <div class="fw-bold">{{ feu.reference }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Date de début</label>
+            <div>{{ feu.date_debut.strftime('%d/%m/%Y') if feu.date_debut else '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Zone</label>
+            <div>{{ feu.zone or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Village proche</label>
+            <div>{{ feu.village_proche or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Superficie brûlée</label>
+            <div>
+              <span class="badge bg-{{ 'danger' if (feu.superficie_brulee_ha or 0) > 500 else 'warning text-dark' if (feu.superficie_brulee_ha or 0) > 100 else 'success' }} fs-6">
+                {{ "%.1f"|format(feu.superficie_brulee_ha or 0) }} ha
+              </span>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Intensité</label>
+            <div>
+              <span class="badge bg-{{ 'danger' if feu.intensite == 'Très fort' else 'warning text-dark' if feu.intensite in ['Fort','Moyen'] else 'success' }}">
+                {{ feu.intensite or '—' }}
+              </span>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Type de végétation</label>
+            <div>{{ feu.type_vegetation or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Cause</label>
+            <div>{{ feu.cause or '—' }}</div>
+          </div>
+          {% if feu.cause_detail %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Détail cause</label>
+            <div>{{ feu.cause_detail }}</div>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Impact faune</label>
+            <div>{{ feu.impact_faune or '—' }}</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Signalé par</label>
+            <div>{{ feu.signale_par or '—' }}</div>
+          </div>
+          {% if feu.description_impact %}
+          <div class="col-12">
+            <label class="text-muted small fw-semibold">Description de l'impact</label>
+            <p class="mb-0">{{ feu.description_impact }}</p>
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Coordonnées GPS</label>
+            <div>
+              {% if feu.latitude and feu.longitude %}
+                <code>{{ feu.latitude }}, {{ feu.longitude }}</code>
+              {% else %}—{% endif %}
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="text-muted small fw-semibold">Enregistré le</label>
+            <div>{{ feu.created_at.strftime('%d/%m/%Y') if feu.created_at else '—' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Colonne droite ── -->
+  <div class="col-lg-5 d-flex flex-column gap-4">
+
+    <!-- Changement de statut -->
+    <div class="card shadow-sm border-danger">
+      <div class="card-header bg-danger bg-opacity-10">
+        <h6 class="mb-0 text-danger"><i class="bi bi-arrow-repeat me-2"></i>Changer le statut</h6>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">Statut actuel :
+          <span class="badge bg-{{ 'success' if feu.statut == 'éteint' else 'warning text-dark' if feu.statut == 'surveille' else 'danger' }}">
+            {{ feu.statut }}
+          </span>
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+          {% for st, label, cls in [
+              ('en_cours',  'En cours',  'danger'),
+              ('surveille', 'Surveillé', 'warning'),
+              ('éteint',    'Éteint',    'success')
+          ] %}
+          {% if feu.statut != st %}
+          <form method="POST" action="{{ url_for('collecte.feu_changer_statut', id=feu.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="statut" value="{{ st }}">
+            <button class="btn btn-sm btn-{{ cls }} {% if cls == 'warning' %}text-dark{% endif %}">
+              <i class="bi bi-arrow-right-circle me-1"></i>{{ label }}
+            </button>
+          </form>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini-carte -->
+    {% if feu.latitude and feu.longitude %}
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="bi bi-map me-2"></i>Localisation</h6>
+          <a href="{{ url_for('cartographie.index') }}?lat={{ feu.latitude }}&lng={{ feu.longitude }}&zoom=13&popup={{ feu.reference|urlencode }}"
+             class="btn btn-sm btn-outline-danger" target="_blank">
+            <i class="bi bi-fullscreen me-1"></i>Plein écran
+          </a>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div id="mini-map" style="height:250px;"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Lien vers carte complète -->
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body text-center">
+        <p class="text-muted small mb-2">Explorer la zone dans la cartographie</p>
+        <a href="{{ url_for('cartographie.index') }}?lat={{ feu.latitude or 12.36 }}&lng={{ feu.longitude or -1.53 }}&zoom=10"
+           class="btn btn-outline-danger btn-sm" target="_blank">
+          <i class="bi bi-map-fill me-1"></i>Ouvrir dans Cartographie
+        </a>
+      </div>
+    </div>
+
+  </div><!-- /col-droite -->
+</div><!-- /row -->
+{% endblock %}
+
+{% block scripts %}
+{% if feu.latitude and feu.longitude %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  const lat = {{ feu.latitude }};
+  const lng = {{ feu.longitude }};
+  const map = L.map('mini-map', { zoomControl: true, scrollWheelZoom: false })
+               .setView([lat, lng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  const icon = L.divIcon({
+    html: '<i class="bi bi-fire" style="color:#dc3545;font-size:1.4rem"></i>',
+    className: '', iconAnchor: [12, 12]
+  });
+  L.marker([lat, lng], { icon })
+   .addTo(map)
+   .bindPopup('<b>{{ feu.reference }}</b><br>{{ feu.zone or "" }}<br>{{ feu.statut }}')
+   .openPopup();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ rapport.reference }} — Rapports{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold">
+          <i class="bi bi-file-earmark-bar-graph me-2"></i>{{ rapport.titre[:60] }}
+        </h4>
+        <small class="text-muted">
+          Réf. {{ rapport.reference }} &nbsp;·&nbsp;
+          Période : {{ rapport.periode_debut.strftime('%d/%m/%Y') }} – {{ rapport.periode_fin.strftime('%d/%m/%Y') }}
+        </small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('rapports.generer_pdf', id=rapport.id) }}"
+           class="btn btn-danger btn-sm">
+          <i class="bi bi-file-pdf me-1"></i>Télécharger PDF
+        </a>
+        <a href="{{ url_for('rapports.generer_excel', id=rapport.id) }}"
+           class="btn btn-success btn-sm">
+          <i class="bi bi-file-excel me-1"></i>Télécharger Excel
+        </a>
+        {% if current_user.has_role('admin','superviseur') and rapport.statut != 'publie' %}
+        <form method="POST" action="{{ url_for('rapports.publier', id=rapport.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-send me-1"></i>Publier
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-md-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-success text-white">
+        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informations</h6>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5 text-muted small">Type</dt>
+          <dd class="col-7"><span class="badge bg-primary">{{ rapport.get_type_label() }}</span></dd>
+          <dt class="col-5 text-muted small">Statut</dt>
+          <dd class="col-7">
+            <span class="badge bg-{{ 'success' if rapport.statut == 'publie' else 'secondary' }}">
+              {{ rapport.statut }}
+            </span>
+          </dd>
+          <dt class="col-5 text-muted small">Auteur</dt>
+          <dd class="col-7 small">{{ rapport.auteur.nom if rapport.auteur else '—' }}</dd>
+          <dt class="col-5 text-muted small">Zone</dt>
+          <dd class="col-7 small">{{ rapport.zone_couverte or '—' }}</dd>
+          <dt class="col-5 text-muted small">Créé le</dt>
+          <dd class="col-7 small">{{ rapport.created_at.strftime('%d/%m/%Y') }}</dd>
+          {% if rapport.fichier_pdf %}
+          <dt class="col-5 text-muted small">PDF</dt>
+          <dd class="col-7">
+            <a href="{{ url_for('rapports.generer_pdf', id=rapport.id) }}" class="small text-danger">
+              <i class="bi bi-file-pdf me-1"></i>Télécharger
+            </a>
+          </dd>
+          {% endif %}
+          {% if rapport.fichier_excel %}
+          <dt class="col-5 text-muted small">Excel</dt>
+          <dd class="col-7">
+            <a href="{{ url_for('rapports.generer_excel', id=rapport.id) }}" class="small text-success">
+              <i class="bi bi-file-excel me-1"></i>Télécharger
+            </a>
+          </dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+    <a href="{{ url_for('rapports.index') }}" class="btn btn-outline-secondary btn-sm w-100">
+      <i class="bi bi-arrow-left me-1"></i>Retour à la liste
+    </a>
+  </div>
+
+  <div class="col-12 col-md-8">
+    {% if rapport.resume_executif %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white border-bottom">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-chat-quote me-2"></i>Résumé exécutif</h6>
+      </div>
+      <div class="card-body">
+        <p class="mb-0" style="line-height:1.7">{{ rapport.resume_executif }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-white border-bottom">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-arrow-down-circle me-2 text-success"></i>Générer / Télécharger</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="border rounded p-3 text-center h-100">
+              <i class="bi bi-file-pdf text-danger" style="font-size:2.5rem"></i>
+              <h6 class="mt-2">Rapport PDF</h6>
+              <p class="text-muted small">Document mis en page, prêt à imprimer ou envoyer par email.</p>
+              <a href="{{ url_for('rapports.generer_pdf', id=rapport.id) }}"
+                 class="btn btn-danger btn-sm w-100">
+                <i class="bi bi-download me-1"></i>Générer PDF
+              </a>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="border rounded p-3 text-center h-100">
+              <i class="bi bi-file-excel text-success" style="font-size:2.5rem"></i>
+              <h6 class="mt-2">Rapport Excel</h6>
+              <p class="text-muted small">Données tabulées avec onglets thématiques, filtres et graphiques.</p>
+              <a href="{{ url_for('rapports.generer_excel', id=rapport.id) }}"
+                 class="btn btn-success btn-sm w-100">
+                <i class="bi bi-download me-1"></i>Générer Excel
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

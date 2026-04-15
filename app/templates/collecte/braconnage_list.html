@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Indicateurs de braconnage — VégéSuivi Pro{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle me-2 text-danger"></i>Indicateurs de Braconnage</h4>
+        <small class="text-muted">Enregistrement et suivi des activités illégales</small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('collecte.braconnage_export_pdf') }}" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+        </a>
+        <a href="{{ url_for('collecte.braconnage_nouveau') }}" class="btn btn-danger btn-sm">
+          <i class="bi bi-plus-circle me-1"></i>Nouvel indicateur
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Référence</th><th>Date</th><th>Type</th><th>Zone</th>
+            <th>Espèces</th><th>Gravité</th><th>Saisies</th><th>Arrestations</th><th>Statut</th><th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in indicateurs.items %}
+          <tr>
+            <td><small class="text-muted fw-semibold">{{ b.reference }}</small></td>
+            <td><small>{{ b.date_constat.strftime('%d/%m/%Y') }}</small></td>
+            <td><small class="fw-semibold">{{ b.type_indicateur }}</small></td>
+            <td><small>{{ b.zone or '—' }}</small></td>
+            <td><small>{{ (b.especes_concernees or '—')[:30] }}</small></td>
+            <td>
+              <span class="badge bg-{{ 'danger' if b.niveau_gravite in ['Critique','Grave'] else 'warning text-dark' }}">
+                {{ b.niveau_gravite or '—' }}
+              </span>
+            </td>
+            <td class="text-center">
+              <i class="bi bi-{{ 'check-circle text-success' if b.saisies_effectuees else 'x-circle text-muted' }}"></i>
+            </td>
+            <td class="text-center">
+              {% if b.arrestations %}
+              <span class="badge bg-dark">{{ b.arrestations }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              <span class="badge bg-{{ 'success' if b.statut == 'traite' else 'warning text-dark' if b.statut == 'en_cours' else 'danger' if b.statut == 'nouveau' else 'secondary' }}">
+                {{ b.statut }}
+              </span>
+            </td>
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{{ url_for('collecte.braconnage_detail', id=b.id) }}"
+                   class="btn btn-sm btn-outline-secondary py-0 px-1" title="Voir le détail">
+                  <i class="bi bi-eye" style="font-size:.8rem"></i>
+                </a>
+                {% if b.latitude and b.longitude %}
+                <a href="{{ url_for('cartographie.index') }}?lat={{ b.latitude }}&lng={{ b.longitude }}&zoom=13&popup={{ b.reference|urlencode }}"
+                   class="btn btn-sm btn-outline-primary py-0 px-1" title="Voir sur la carte" target="_blank">
+                  <i class="bi bi-map" style="font-size:.8rem"></i>
+                </a>
+                {% endif %}
+                {% if b.statut != 'traite' and b.statut != 'archive' %}
+                <form method="POST" action="{{ url_for('collecte.braconnage_changer_statut', id=b.id) }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="statut"
+                         value="{{ 'en_cours' if b.statut == 'nouveau' else 'traite' }}">
+                  <button class="btn btn-sm btn-{{ 'outline-warning' if b.statut == 'nouveau' else 'outline-success' }} py-0 px-1"
+                          style="font-size:.75rem" title="{{ 'Passer en cours' if b.statut == 'nouveau' else 'Marquer traité' }}">
+                    <i class="bi bi-{{ 'arrow-right-circle' if b.statut == 'nouveau' else 'check-circle' }}"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-center py-4 text-muted">
+            Aucun indicateur enregistré.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
