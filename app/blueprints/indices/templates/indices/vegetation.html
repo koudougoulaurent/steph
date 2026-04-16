@@ -388,6 +388,17 @@
             <button type="submit" class="btn btn-success w-100 mt-1" id="btn-raster-veg">
               <i class="bi bi-cpu me-2"></i>Traiter l'image satellite
             </button>
+            <!-- Barre de progression upload TIF -->
+            <div id="tif-progress-veg" style="display:none" class="mt-2">
+              <div class="d-flex justify-content-between mb-1">
+                <small class="text-muted" id="tif-progress-text-veg">Upload en cours…</small>
+                <small class="text-muted" id="tif-progress-pct-veg">0%</small>
+              </div>
+              <div class="progress" style="height:6px">
+                <div id="tif-progress-bar-veg" class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                     style="width:0%"></div>
+              </div>
+            </div>
             <a href="{{ url_for('indices.vegetation') }}"
                class="btn btn-outline-secondary w-100 mt-2 btn-sm">
               <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
@@ -398,7 +409,7 @@
             <i class="bi bi-lightbulb text-warning me-1"></i>
             <strong>Formats acceptés :</strong> GeoTIFF (.tif / .tiff), fichier mono-bande ou multi-bandes.
             Sentinel-2 L2A, Landsat 8/9 Surface Reflectance.
-            Taille max : 50 Mo.
+            Fichiers volumineux supportés (upload par fragments automatique).
           </div>
         </div>
         <!-- /tab-raster -->
@@ -679,11 +690,82 @@ document.getElementById('form-veg').addEventListener('submit', function () {
   btn.disabled = true;
 });
 
-// ── Spinner au submit image satellite ──
-document.getElementById('form-raster-veg').addEventListener('submit', function () {
-  const btn = document.getElementById('btn-raster-veg');
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement image…';
+// ── Upload TIF par fragments (aucune limite de taille) ──
+const CHUNK_SIZE_TIF = 5 * 1024 * 1024;
+
+async function uploadTifChunked(file, fileKey, uploadId, onProgress) {
+  const total = Math.max(1, Math.ceil(file.size / CHUNK_SIZE_TIF));
+  for (let i = 0; i < total; i++) {
+    const blob = file.slice(i * CHUNK_SIZE_TIF, (i + 1) * CHUNK_SIZE_TIF);
+    const fd = new FormData();
+    fd.append('upload_id', uploadId);
+    fd.append('file_key', fileKey);
+    fd.append('chunk_index', i);
+    fd.append('chunk_data', blob, file.name);
+    const r = await fetch("{{ url_for('indices.chunk_tif') }}", { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(`Fragment ${i+1}/${total} échoué`);
+    if (onProgress) onProgress(i + 1, total);
+  }
+  const ext = file.name.toLowerCase().endsWith('.tiff') ? '.tiff' : '.tif';
+  const r = await fetch("{{ url_for('indices.tif_finaliser') }}", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ upload_id: uploadId, file_key: fileKey, extension: ext })
+  });
+  const d = await r.json();
+  if (!d.ok) throw new Error(d.message || 'Assemblage échoué');
+  return d.token;
+}
+
+document.getElementById('form-raster-veg').addEventListener('submit', async function(e) {
+  const fileInputs = {
+    nir_tif:  this.querySelector('[name=nir_tif]'),
+    red_tif:  this.querySelector('[name=red_tif]'),
+    blue_tif: this.querySelector('[name=blue_tif]'),
+  };
+  const filesToUpload = Object.entries(fileInputs)
+    .filter(([, inp]) => inp && inp.files && inp.files[0]);
+  if (filesToUpload.length === 0) return;
+
+  e.preventDefault();
+  const btn      = document.getElementById('btn-raster-veg');
+  const progress = document.getElementById('tif-progress-veg');
+  const bar      = document.getElementById('tif-progress-bar-veg');
+  const txt      = document.getElementById('tif-progress-text-veg');
+  const pct      = document.getElementById('tif-progress-pct-veg');
+
   btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Upload…';
+  progress.style.display = 'block';
+
+  try {
+    const uploadId = crypto.randomUUID();
+    let done = 0;
+    for (const [key, inp] of filesToUpload) {
+      const file = inp.files[0];
+      txt.textContent = `Upload ${key.replace('_tif','')} (${(file.size/1048576).toFixed(1)} Mo)…`;
+      const token = await uploadTifChunked(file, key, uploadId, (cur, tot) => {
+        const globalPct = Math.round((done / filesToUpload.length + cur / tot / filesToUpload.length) * 100);
+        bar.style.width = globalPct + '%';
+        pct.textContent = globalPct + '%';
+      });
+      const hidden = document.createElement('input');
+      hidden.type = 'hidden'; hidden.name = `tif_token_${key}`; hidden.value = token;
+      this.appendChild(hidden);
+      inp.disabled = true;
+      done++;
+    }
+    txt.textContent = 'Calcul des indices…';
+    bar.style.width = '100%'; pct.textContent = '100%';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Calcul…';
+    this.enctype = 'application/x-www-form-urlencoded';
+    this.submit();
+  } catch(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cpu me-2"></i>Traiter l\'image satellite';
+    progress.style.display = 'none';
+    alert('Erreur : ' + err.message);
+  }
 });
 
 // ── Visibilité section Blue selon sélection EVI ──

@@ -10,13 +10,21 @@ Feux        : NBR, dNBR, BAI
 """
 
 import os
+import shutil
 import uuid
 
-from flask import render_template, request, current_app
+from flask import render_template, request, current_app, jsonify
 from flask_login import login_required
 
 from app.blueprints.indices import indices_bp
 from app.utils import indices as idx
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Store in-memory des TIF assemblés (token → chemin fichier)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_TIF_TOKENS: dict[str, str] = {}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -36,6 +44,74 @@ def _sauver_tif(fichier_upload) -> str | None:
     chemin = os.path.join(upload_dir, nom_securise)
     fichier_upload.save(chemin)
     return chemin
+
+
+def _get_tif(key: str) -> str | None:
+    """Résout un TIF depuis un token (chunked) ou un upload direct."""
+    token = request.form.get(f'tif_token_{key}')
+    if token:
+        path = _TIF_TOKENS.pop(token, None)
+        return path if path and os.path.exists(path) else None
+    return _sauver_tif(request.files.get(key))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Upload TIF par fragments (chunked — contourne MAX_CONTENT_LENGTH)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@indices_bp.route('/chunk-tif', methods=['POST'])
+@login_required
+def chunk_tif():
+    """Reçoit un fragment de TIF et le sauvegarde dans un dossier temporaire."""
+    upload_id   = request.form.get('upload_id', '')
+    file_key    = request.form.get('file_key', '')
+    chunk_index = request.form.get('chunk_index', '0')
+    chunk_file  = request.files.get('chunk_data')
+
+    if not upload_id or not file_key or not chunk_file:
+        return jsonify({'ok': False, 'message': 'Paramètres manquants'}), 400
+
+    chunk_dir = os.path.join(
+        current_app.config['UPLOAD_FOLDER'],
+        'tif_chunks', upload_id, file_key
+    )
+    os.makedirs(chunk_dir, exist_ok=True)
+    chunk_file.save(os.path.join(chunk_dir, f'chunk_{int(chunk_index):05d}'))
+    return jsonify({'ok': True})
+
+
+@indices_bp.route('/tif-finaliser', methods=['POST'])
+@login_required
+def tif_finaliser():
+    """Assemble les fragments d'un TIF, stocke le chemin sous un token, le retourne."""
+    data      = request.get_json(force=True)
+    upload_id = data.get('upload_id', '')
+    file_key  = data.get('file_key', '')
+    extension = data.get('extension', '.tif')
+
+    chunk_dir = os.path.join(
+        current_app.config['UPLOAD_FOLDER'],
+        'tif_chunks', upload_id, file_key
+    )
+    if not os.path.isdir(chunk_dir):
+        return jsonify({'ok': False, 'message': 'Fragments introuvables'}), 400
+
+    out_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'indices')
+    os.makedirs(out_dir, exist_ok=True)
+    chemin_final = os.path.join(out_dir, f"{uuid.uuid4().hex}{extension}")
+
+    chunks = sorted(os.listdir(chunk_dir))
+    with open(chemin_final, 'wb') as out_f:
+        for c in chunks:
+            with open(os.path.join(chunk_dir, c), 'rb') as cf:
+                out_f.write(cf.read())
+
+    shutil.rmtree(chunk_dir, ignore_errors=True)
+
+    token = uuid.uuid4().hex
+    _TIF_TOKENS[token] = chemin_final
+    return jsonify({'ok': True, 'token': token})
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -128,9 +204,9 @@ def vegetation():
                 red_b  = int(request.form.get('red_bande',  1))
                 blue_b = int(request.form.get('blue_bande', 1))
 
-                nir_tif  = _sauver_tif(request.files.get('nir_tif'))
-                red_tif  = _sauver_tif(request.files.get('red_tif'))
-                blue_tif = _sauver_tif(request.files.get('blue_tif'))
+                nir_tif  = _get_tif('nir_tif')
+                red_tif  = _get_tif('red_tif')
+                blue_tif = _get_tif('blue_tif')
 
                 if not nir_tif or not red_tif:
                     raise ValueError('Les bandes NIR et Red sont obligatoires.')
@@ -257,14 +333,14 @@ def feux():
                 swir_b = int(request.form.get('swir_bande', 1))
                 red_b  = int(request.form.get('red_bande',  1))
 
-                nir_tif  = _sauver_tif(request.files.get('nir_tif'))
-                swir_tif = _sauver_tif(request.files.get('swir_tif'))
-                red_tif  = _sauver_tif(request.files.get('red_tif'))
+                nir_tif  = _get_tif('nir_tif')
+                swir_tif = _get_tif('swir_tif')
+                red_tif  = _get_tif('red_tif')
 
-                pre_nir_tif   = _sauver_tif(request.files.get('pre_nir_tif'))
-                pre_swir_tif  = _sauver_tif(request.files.get('pre_swir_tif'))
-                post_nir_tif  = _sauver_tif(request.files.get('post_nir_tif'))
-                post_swir_tif = _sauver_tif(request.files.get('post_swir_tif'))
+                pre_nir_tif   = _get_tif('pre_nir_tif')
+                pre_swir_tif  = _get_tif('pre_swir_tif')
+                post_nir_tif  = _get_tif('post_nir_tif')
+                post_swir_tif = _get_tif('post_swir_tif')
 
                 if not nir_tif or not swir_tif:
                     raise ValueError('Les bandes NIR et SWIR sont obligatoires.')
