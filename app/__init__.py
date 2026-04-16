@@ -111,6 +111,16 @@ def create_app(config_name='default'):
         db.session.rollback()
         return render_template('errors/500.html'), 500
 
+    @app.errorhandler(413)
+    def request_entity_too_large(e):
+        from flask import request as req, redirect, url_for, flash
+        flash('Fichier trop volumineux. La taille maximale autorisée est de 100 Mo.', 'danger')
+        # Rediriger vers la page d'import si on vient de là, sinon 404
+        referrer = req.referrer or ''
+        if 'importer' in referrer or 'donnees-terrain' in referrer:
+            return redirect(url_for('donnees_terrain.importer'))
+        return render_template('errors/413.html'), 413
+
     with app.app_context():
         db.create_all()
 
