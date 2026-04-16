@@ -104,7 +104,7 @@ def campagne_observations_geojson(id):
         'campagne': {
             'reference': campagne.reference,
             'nom': campagne.nom,
-            'zone': campagne.zone or ''
+            'zone': campagne.zone_couverte or ''
         }
     })
 

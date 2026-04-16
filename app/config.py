@@ -22,7 +22,7 @@ class Config:
 
     # Upload
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500 MB
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB par chunk (upload fragmenté côté client)
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'tif', 'tiff', 'geojson', 'shp', 'zip', 'csv', 'xlsx'}
 
     # Rapports

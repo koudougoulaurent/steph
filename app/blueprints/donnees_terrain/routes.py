@@ -86,6 +86,151 @@ def index():
 #  Import
 # ══════════════════════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  Import
+# ══════════════════════════════════════════════════════════════════════════════
+
+@donnees_bp.route('/importer/chunk', methods=['POST'])
+@login_required
+def importer_chunk():
+    """
+    Reçoit un fragment (chunk) d'un fichier en upload.
+    Paramètres FormData :
+      - upload_id  : identifiant unique de la session d'upload (uuid hex)
+      - chunk_index: numéro du fragment (0-based)
+      - total_chunks: nombre total de fragments
+      - filename   : nom du fichier original
+      - chunk      : blob binaire du fragment
+    """
+    upload_id    = request.form.get('upload_id', '').strip()
+    chunk_index  = int(request.form.get('chunk_index', 0))
+    total_chunks = int(request.form.get('total_chunks', 1))
+    filename     = request.form.get('filename', 'upload.bin')
+    chunk_file   = request.files.get('chunk')
+
+    if not upload_id or not chunk_file:
+        return jsonify({'ok': False, 'error': 'Paramètres manquants'}), 400
+
+    # Dossier temporaire dédié à cet upload
+    tmp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'shp_chunks', upload_id)
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    # Sauvegarder le fragment
+    chunk_path = os.path.join(tmp_dir, f'chunk_{chunk_index:05d}')
+    chunk_file.save(chunk_path)
+
+    return jsonify({
+        'ok': True,
+        'chunk_index': chunk_index,
+        'total_chunks': total_chunks,
+        'done': (chunk_index + 1) >= total_chunks
+    })
+
+
+@donnees_bp.route('/importer/finaliser', methods=['POST'])
+@login_required
+def importer_finaliser():
+    """
+    Appelé après le dernier chunk : assemble le fichier, traite le SHP,
+    enregistre en base et retourne l'URL de détail.
+    """
+    data      = request.get_json(force=True) or {}
+    upload_id = data.get('upload_id', '').strip()
+    filename  = data.get('filename', 'upload.bin')
+    nom_saisi = data.get('nom', '').strip()
+    description = data.get('description', '').strip()
+    source    = data.get('source', '').strip()
+    date_acq_str = data.get('date_acquisition', '').strip()
+
+    if not upload_id:
+        return jsonify({'ok': False, 'error': 'upload_id manquant'}), 400
+
+    tmp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'shp_chunks', upload_id)
+    if not os.path.isdir(tmp_dir):
+        return jsonify({'ok': False, 'error': 'Session upload introuvable'}), 404
+
+    uid     = _uuid.uuid4().hex
+    dossier = _dossier_upload(uid)
+
+    try:
+        # 1. Assembler les chunks en fichier complet
+        chunks = sorted(
+            [f for f in os.listdir(tmp_dir) if f.startswith('chunk_')],
+            key=lambda x: int(x.split('_')[1])
+        )
+        if not chunks:
+            raise ValueError('Aucun fragment reçu.')
+
+        assembled_path = os.path.join(tmp_dir, filename)
+        with open(assembled_path, 'wb') as out:
+            for ch in chunks:
+                with open(os.path.join(tmp_dir, ch), 'rb') as inp:
+                    shutil.copyfileobj(inp, out)
+
+        # 2. Extraire si ZIP ou copier directement
+        ext = os.path.splitext(filename)[1].lower()
+        if ext == '.zip':
+            sr.extraire_zip(assembled_path, dossier)
+        else:
+            shutil.copy(assembled_path, os.path.join(dossier, filename))
+
+        # 3. Nettoyer dossier temporaire
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        # 4. Valider et analyser
+        ok, msg = sr.valider_bundle(dossier)
+        if not ok:
+            raise ValueError(msg)
+
+        chemin_shp = sr.trouver_shp(dossier)
+        meta       = sr.analyser_shp(chemin_shp)
+        geojson_str = sr.shp_to_geojson_json(chemin_shp, max_features=500)
+
+        # 5. Persister
+        ref = generate_reference('CTR')
+        date_acq = None
+        if date_acq_str:
+            try:
+                date_acq = datetime.strptime(date_acq_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        couche = CoucheDonneesTerrain(
+            reference=ref,
+            nom=nom_saisi or meta['nom_fichier'],
+            description=description or None,
+            source=source or None,
+            date_acquisition=date_acq,
+            type_geometrie=meta['type_geometrie'],
+            icone_geometrie=meta['icone_geometrie'],
+            nombre_entites=meta['nombre_entites'],
+            bbox_json=json.dumps(meta['bbox']) if meta['bbox'] else None,
+            attributs_json=json.dumps(meta['attributs']),
+            srid=meta['srid'],
+            geojson_apercu=geojson_str,
+            dossier_shp=dossier,
+            nom_fichier_shp=os.path.basename(chemin_shp),
+            taille_octets=_taille_dossier(dossier),
+            uploaded_by=current_user.id,
+            statut='valide',
+        )
+        db.session.add(couche)
+        db.session.commit()
+
+        return jsonify({
+            'ok': True,
+            'message': (f'Couche « {couche.nom} » importée — '
+                        f'{couche.nombre_entites:,} entités ({meta["type_geometrie"]}).'),
+            'redirect': url_for('donnees_terrain.detail', id=couche.id)
+        })
+
+    except Exception as e:
+        shutil.rmtree(dossier, ignore_errors=True)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        current_app.logger.warning(f'Finalisation SHP échouée: {e}')
+        return jsonify({'ok': False, 'error': str(e)}), 422
+
+
 @donnees_bp.route('/importer', methods=['GET', 'POST'])
 @login_required
 def importer():

@@ -218,7 +218,7 @@
         </ol>
         <div class="mt-2 alert alert-info py-2 mb-0 small">
           <i class="bi bi-info-circle me-1"></i>
-          Taille maximale : <strong>500 Mo</strong>.
+          Upload fragmenté (5 Mo par fragment) — <strong>pas de limite pratique de taille</strong>.
           Projections supportées : WGS 84 (EPSG:4326) recommandé, mais toutes sont acceptées.
         </div>
       </div>
@@ -230,7 +230,13 @@
 
 {% block extra_js %}
 <script>
-// ── Sélection du mode ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  Upload chunké — 5 MB par morceau pour plan gratuit
+// ══════════════════════════════════════════════════════════════
+const CHUNK_SIZE = 5 * 1024 * 1024;  // 5 MB par chunk
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+// ── Sélection du mode ─────────────────────────────────────────
 function setMode(mode) {
   document.getElementById('mode_upload').value = mode;
   document.getElementById('zone-zip').style.display     = mode === 'zip'      ? '' : 'none';
@@ -239,7 +245,7 @@ function setMode(mode) {
   document.getElementById('mode-fichiers-card').classList.toggle('selected', mode === 'fichiers');
 }
 
-// ── Affichage fichier ZIP ─────────────────────────────────────────────────
+// ── Affichage fichier ZIP ─────────────────────────────────────
 function afficherFichierZip(input) {
   const zone = document.getElementById('drop-zip');
   const label = document.getElementById('zip-name');
@@ -249,7 +255,6 @@ function afficherFichierZip(input) {
     label.style.display = '';
     const size = f.size < 1048576 ? (f.size/1024).toFixed(1) + ' Ko' : (f.size/1048576).toFixed(1) + ' Mo';
     label.innerHTML = `<i class="bi bi-check-circle me-1"></i>${f.name} <span class="text-muted">(${size})</span>`;
-    // Auto-remplir le nom si vide
     const nomInput = document.getElementById('nom-couche');
     if (!nomInput.value.trim()) {
       nomInput.value = f.name.replace(/\.zip$/i, '').replace(/[_-]/g, ' ');
@@ -260,17 +265,15 @@ function afficherFichierZip(input) {
   }
 }
 
-// ── Affichage multi-fichiers ──────────────────────────────────────────────
+// ── Affichage multi-fichiers ──────────────────────────────────
 function afficherFichiersMultiples(input) {
   const liste = document.getElementById('liste-fichiers');
   const zone = document.getElementById('drop-multi');
   liste.innerHTML = '';
   if (!input.files.length) return;
-
   zone.classList.add('has-files');
   const colours = { shp:'ext-shp', dbf:'ext-dbf', shx:'ext-shx',
                     prj:'ext-prj', zip:'ext-zip', cpg:'ext-cpg' };
-
   Array.from(input.files).forEach(f => {
     const ext = f.name.split('.').pop().toLowerCase();
     const size = f.size < 1048576 ? (f.size/1024).toFixed(0) + ' Ko' : (f.size/1048576).toFixed(1) + ' Mo';
@@ -282,8 +285,6 @@ function afficherFichiersMultiples(input) {
         <span class="text-muted small">${size}</span>
       </div>`;
   });
-
-  // Auto-remplir nom
   const shpFile = Array.from(input.files).find(f => f.name.toLowerCase().endsWith('.shp'));
   if (shpFile) {
     const nomInput = document.getElementById('nom-couche');
@@ -293,77 +294,165 @@ function afficherFichiersMultiples(input) {
   }
 }
 
-// ── Drag & Drop ───────────────────────────────────────────────────────────
+// ── Drag & Drop ───────────────────────────────────────────────
 function setupDragDrop(dropZoneId, inputId, handler) {
   const zone = document.getElementById(dropZoneId);
   const input = document.getElementById(inputId);
   if (!zone || !input) return;
-
-  zone.addEventListener('dragover', e => {
-    e.preventDefault();
-    zone.classList.add('dragging');
-  });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragging'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('dragging');
     if (e.dataTransfer.files.length) {
-      // Transférer les fichiers dans l'input (via DataTransfer)
       try {
         const dt = new DataTransfer();
         Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
         input.files = dt.files;
         handler(input);
-      } catch(err) {
-        console.warn('DataTransfer non supporté, utilisez le sélecteur.');
-      }
+      } catch(err) { console.warn('DataTransfer non supporté'); }
     }
   });
 }
-
 setupDragDrop('drop-zip', 'input-zip', afficherFichierZip);
 setupDragDrop('drop-multi', 'input-fichiers', afficherFichiersMultiples);
 
-// ── Validation taille + Spinner au submit ───────────────────────────────
-const MAX_BYTES = 500 * 1024 * 1024; // 500 Mo — doit correspondre à MAX_CONTENT_LENGTH Flask
-
-function getTotalSize() {
-  let total = 0;
-  const zipInput = document.getElementById('input-zip');
-  const multiInput = document.getElementById('input-fichiers');
-  if (zipInput && zipInput.files.length)   Array.from(zipInput.files).forEach(f => total += f.size);
-  if (multiInput && multiInput.files.length) Array.from(multiInput.files).forEach(f => total += f.size);
-  return total;
+// ── UI helpers ────────────────────────────────────────────────
+function showProgress(pct, label) {
+  let bar = document.getElementById('upload-progress-wrap');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'upload-progress-wrap';
+    bar.className = 'mt-3';
+    bar.innerHTML = `
+      <div class="d-flex justify-content-between small mb-1">
+        <span id="upload-progress-label" class="text-muted"></span>
+        <span id="upload-progress-pct" class="fw-semibold"></span>
+      </div>
+      <div class="progress" style="height:8px">
+        <div id="upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+             role="progressbar" style="width:0%"></div>
+      </div>`;
+    document.getElementById('import-form').insertAdjacentElement('beforebegin', bar);
+  }
+  document.getElementById('upload-progress-bar').style.width = pct + '%';
+  document.getElementById('upload-progress-pct').textContent = pct + '%';
+  document.getElementById('upload-progress-label').textContent = label;
 }
 
-function showSizeError(totalBytes) {
-  const mb = (totalBytes / 1048576).toFixed(1);
-  const alert = document.createElement('div');
-  alert.className = 'alert alert-danger alert-dismissible fade show shadow-sm mt-3';
-  alert.innerHTML = `<i class="bi bi-x-circle me-2"></i><strong>Fichier trop volumineux :</strong>
-    ${mb} Mo détectés — la limite est <strong>500 Mo</strong>.
-    <br><small class="text-muted">Compressez davantage votre archive ZIP ou découpez le Shapefile.</small>
+function showError(msg) {
+  let existing = document.getElementById('upload-error-alert');
+  if (existing) existing.remove();
+  const a = document.createElement('div');
+  a.id = 'upload-error-alert';
+  a.className = 'alert alert-danger alert-dismissible fade show shadow-sm mt-3';
+  a.innerHTML = `<i class="bi bi-x-circle me-2"></i><strong>Erreur :</strong> ${msg}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-  const form = document.getElementById('import-form');
-  form.insertAdjacentElement('beforebegin', alert);
-  window.scrollTo({top: alert.offsetTop - 80, behavior: 'smooth'});
+  document.getElementById('import-form').insertAdjacentElement('beforebegin', a);
+  window.scrollTo({ top: a.offsetTop - 80, behavior: 'smooth' });
 }
 
-document.getElementById('import-form').addEventListener('submit', function (e) {
-  const total = getTotalSize();
-  if (total === 0) {
-    e.preventDefault();
-    alert('Veuillez sélectionner un fichier avant d\'importer.');
-    return;
-  }
-  if (total > MAX_BYTES) {
-    e.preventDefault();
-    showSizeError(total);
-    return;
-  }
+function resetBtn() {
   const btn = document.getElementById('btn-importer');
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Import en cours…';
+  btn.innerHTML = '<i class="bi bi-cloud-upload me-2"></i>Importer la couche';
+  btn.disabled = false;
+}
+
+// ── Envoi d'un chunk ──────────────────────────────────────────
+async function envoyerChunk(uploadId, file, chunkIndex, totalChunks) {
+  const start = chunkIndex * CHUNK_SIZE;
+  const blob  = file.slice(start, start + CHUNK_SIZE);
+  const fd    = new FormData();
+  fd.append('upload_id',    uploadId);
+  fd.append('chunk_index',  chunkIndex);
+  fd.append('total_chunks', totalChunks);
+  fd.append('filename',     file.name);
+  fd.append('chunk',        blob, file.name);
+  fd.append('csrf_token',   CSRF_TOKEN);
+
+  const resp = await fetch('{{ url_for("donnees_terrain.importer_chunk") }}', {
+    method: 'POST', body: fd
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+// ── Upload principal : plusieurs fichiers possibles ───────────
+async function uploadFichiers(uploadId, files) {
+  let totalBytes = Array.from(files).reduce((s, f) => s + f.size, 0);
+  let sentBytes  = 0;
+
+  for (const file of files) {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
+    for (let i = 0; i < totalChunks; i++) {
+      await envoyerChunk(uploadId, file, i, totalChunks);
+      sentBytes += Math.min(CHUNK_SIZE, file.size - i * CHUNK_SIZE);
+      const pct = Math.round(sentBytes / totalBytes * 90); // 90% = upload, 10% = traitement
+      showProgress(pct, `Envoi ${file.name} — fragment ${i+1}/${totalChunks}`);
+    }
+  }
+}
+
+// ── Soumission du formulaire ──────────────────────────────────
+document.getElementById('import-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const mode = document.getElementById('mode_upload').value;
+  let files;
+  if (mode === 'zip') {
+    const input = document.getElementById('input-zip');
+    if (!input.files.length) { showError('Veuillez sélectionner un fichier ZIP.'); return; }
+    files = input.files;
+  } else {
+    const input = document.getElementById('input-fichiers');
+    if (!input.files.length) { showError('Veuillez sélectionner les fichiers du Shapefile.'); return; }
+    files = input.files;
+  }
+
+  const btn = document.getElementById('btn-importer');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Envoi en cours…';
   btn.disabled = true;
+  const uploadId = crypto.randomUUID().replace(/-/g, '');
+
+  try {
+    showProgress(0, 'Démarrage de l\'envoi…');
+    await uploadFichiers(uploadId, files);
+
+    showProgress(92, 'Assemblage et traitement du Shapefile…');
+
+    // Finaliser côté serveur
+    const resp = await fetch('{{ url_for("donnees_terrain.importer_finaliser") }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': CSRF_TOKEN
+      },
+      body: JSON.stringify({
+        upload_id:        uploadId,
+        filename:         files[0].name,
+        nom:              document.getElementById('nom-couche').value.trim(),
+        description:      document.querySelector('[name=description]').value.trim(),
+        source:           document.querySelector('[name=source]').value.trim(),
+        date_acquisition: document.querySelector('[name=date_acquisition]').value.trim(),
+      })
+    });
+
+    const result = await resp.json();
+    showProgress(100, result.ok ? 'Import terminé !' : 'Erreur');
+
+    if (result.ok) {
+      window.location.href = result.redirect;
+    } else {
+      showError(result.error || 'Échec de l\'import.');
+      resetBtn();
+    }
+  } catch (err) {
+    showError('Erreur réseau : ' + err.message);
+    resetBtn();
+  }
 });
 </script>
 {% endblock %}
