@@ -114,7 +114,7 @@ def create_app(config_name='default'):
     @app.errorhandler(413)
     def request_entity_too_large(e):
         from flask import request as req, redirect, url_for, flash
-        flash('Fichier trop volumineux. La taille maximale autorisée est de 100 Mo.', 'danger')
+        flash('Fichier trop volumineux. La taille maximale autorisée est de 500 Mo.', 'danger')
         # Rediriger vers la page d'import si on vient de là, sinon 404
         referrer = req.referrer or ''
         if 'importer' in referrer or 'donnees-terrain' in referrer:

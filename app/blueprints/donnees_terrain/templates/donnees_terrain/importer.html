@@ -218,7 +218,7 @@
         </ol>
         <div class="mt-2 alert alert-info py-2 mb-0 small">
           <i class="bi bi-info-circle me-1"></i>
-          Taille maximale : <strong>100 Mo</strong>.
+          Taille maximale : <strong>500 Mo</strong>.
           Projections supportées : WGS 84 (EPSG:4326) recommandé, mais toutes sont acceptées.
         </div>
       </div>
@@ -325,7 +325,7 @@ setupDragDrop('drop-zip', 'input-zip', afficherFichierZip);
 setupDragDrop('drop-multi', 'input-fichiers', afficherFichiersMultiples);
 
 // ── Validation taille + Spinner au submit ───────────────────────────────
-const MAX_BYTES = 100 * 1024 * 1024; // 100 Mo — doit correspondre à MAX_CONTENT_LENGTH Flask
+const MAX_BYTES = 500 * 1024 * 1024; // 500 Mo — doit correspondre à MAX_CONTENT_LENGTH Flask
 
 function getTotalSize() {
   let total = 0;
@@ -341,7 +341,7 @@ function showSizeError(totalBytes) {
   const alert = document.createElement('div');
   alert.className = 'alert alert-danger alert-dismissible fade show shadow-sm mt-3';
   alert.innerHTML = `<i class="bi bi-x-circle me-2"></i><strong>Fichier trop volumineux :</strong>
-    ${mb} Mo détectés — la limite est <strong>100 Mo</strong>.
+    ${mb} Mo détectés — la limite est <strong>500 Mo</strong>.
     <br><small class="text-muted">Compressez davantage votre archive ZIP ou découpez le Shapefile.</small>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
   const form = document.getElementById('import-form');
