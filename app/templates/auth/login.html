@@ -2,96 +2,187 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Connexion — VégéSuivi Pro</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/vegesuivi.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style>
-    body { background: linear-gradient(135deg, #0d3b2e 0%, #1a5c1a 40%, #2e7d22 100%); min-height: 100vh; }
-    .login-overlay { background: rgba(0,0,0,0.45); min-height: 100vh; display: flex; align-items: center; }
-    .login-card { border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); border: none; }
-    .login-header { background: linear-gradient(135deg, #1a5276, #117a65); border-radius: 16px 16px 0 0; }
-    .brand-leaf { font-size: 3rem; animation: sway 3s ease-in-out infinite; }
-    @keyframes sway { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #0d3b2e 0%, #1a5c1a 50%, #2e7d22 100%);
+      background-attachment: fixed;
+    }
+    .page-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem 1rem;
+      background: rgba(0,0,0,0.38);
+    }
+    .auth-box {
+      width: 100%;
+      max-width: 420px;
+    }
+    .auth-card {
+      border: none;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+    }
+    .auth-header {
+      background: linear-gradient(135deg, #1a5276 0%, #117a65 100%);
+      padding: 2rem 1.5rem 1.75rem;
+      text-align: center;
+    }
+    .auth-header .leaf-icon {
+      font-size: 2.8rem;
+      display: block;
+      animation: sway 3s ease-in-out infinite;
+    }
+    @keyframes sway { 0%,100%{transform:rotate(-6deg)} 50%{transform:rotate(6deg)} }
+    .auth-header h1 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #fff;
+      margin: .5rem 0 .2rem;
+    }
+    .auth-header p {
+      font-size: .8rem;
+      color: rgba(255,255,255,.7);
+      margin: 0;
+    }
+    .auth-body {
+      padding: 1.75rem 1.5rem 1.25rem;
+      background: #fff;
+    }
+    .auth-body label { font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
+    .auth-body .form-control,
+    .auth-body .input-group-text {
+      font-size: .95rem;
+      padding: .6rem .85rem;
+    }
+    .auth-body .btn-success {
+      padding: .7rem;
+      font-size: 1rem;
+      border-radius: 10px;
+      letter-spacing: .02em;
+    }
+    .auth-footer {
+      background: #f8fdf8;
+      border-top: 1px solid #e8f5e9;
+      padding: .9rem 1rem;
+      text-align: center;
+      font-size: .85rem;
+    }
+    .auth-note {
+      text-align: center;
+      color: rgba(255,255,255,.55);
+      font-size: .78rem;
+      margin-top: 1rem;
+      line-height: 1.5;
+    }
+    /* Supprimer le zoom iOS sur focus input */
+    @media (max-width: 575px) {
+      .auth-body .form-control { font-size: 16px !important; }
+    }
   </style>
 </head>
 <body>
-<div class="login-overlay">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+<div class="page-wrap">
+  <div class="auth-box">
 
-        <div class="card login-card">
-          <div class="login-header text-white text-center p-4">
-            <div class="brand-leaf">🌿</div>
-            <h4 class="mb-0 fw-bold mt-2">VégéSuivi Pro</h4>
-            <small class="opacity-75">Direction Régionale de l'Environnement</small>
+    <div class="auth-card">
+
+      <!-- En-tête -->
+      <div class="auth-header">
+        <span class="leaf-icon">🌿</span>
+        <h1>VégéSuivi Pro</h1>
+        <p>Direction Régionale de l'Environnement</p>
+      </div>
+
+      <!-- Corps -->
+      <div class="auth-body">
+        <p class="text-center text-muted mb-4" style="font-size:.9rem">Connexion à votre espace</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for cat, msg in messages %}
+              <div class="alert alert-{{ cat }} py-2 d-flex align-items-start gap-2" style="font-size:.85rem">
+                <i class="bi bi-exclamation-circle-fill flex-shrink-0 mt-1"></i>
+                <span>{{ msg }}</span>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="mb-3">
+            <label for="email">Identifiant</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0">
+                <i class="bi bi-person text-secondary"></i>
+              </span>
+              <input type="text" id="email" name="email"
+                     class="form-control border-start-0 ps-0"
+                     placeholder="Adresse email" required autofocus
+                     autocomplete="username" spellcheck="false"
+                     inputmode="email">
+            </div>
           </div>
-          <div class="card-body p-4">
-            <h5 class="text-center mb-4 text-muted">Connexion à votre espace</h5>
 
-            {% with messages = get_flashed_messages(with_categories=true) %}
-              {% if messages %}
-                {% for cat, msg in messages %}
-                  <div class="alert alert-{{ cat }} py-2 small">
-                    <i class="bi bi-exclamation-circle me-1"></i>{{ msg }}</div>
-                {% endfor %}
-              {% endif %}
-            {% endwith %}
-
-            <form method="POST" novalidate>
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <div class="mb-3">
-                <label class="form-label fw-semibold">Identifiant</label>
-                <div class="input-group">
-                  <span class="input-group-text"><i class="bi bi-person"></i></span>
-                  <input type="text" name="email" class="form-control"
-                         placeholder="Identifiant ou adresse email" required autofocus
-                         autocomplete="username" spellcheck="false">
-                </div>
-              </div>
-              <div class="mb-3">
-                <label class="form-label fw-semibold">Mot de passe</label>
-                <div class="input-group">
-                  <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                  <input type="password" name="password" id="pwd" class="form-control"
-                         placeholder="••••••••" required>
-                  <button class="btn btn-outline-secondary" type="button"
-                          onclick="togglePwd()">
-                    <i class="bi bi-eye" id="eye-icon"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="mb-3 form-check">
-                <input type="checkbox" name="remember" class="form-check-input" id="remember">
-                <label class="form-check-label small" for="remember">Rester connecté</label>
-              </div>
-              <button type="submit" class="btn btn-success w-100 fw-semibold py-2" id="btnLogin">
-                <i class="bi bi-box-arrow-in-right me-2"></i>Se connecter
+          <div class="mb-3">
+            <label for="pwd">Mot de passe</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0">
+                <i class="bi bi-lock text-secondary"></i>
+              </span>
+              <input type="password" id="pwd" name="password"
+                     class="form-control border-start-0 border-end-0 ps-0"
+                     placeholder="••••••••" required
+                     autocomplete="current-password">
+              <button class="btn btn-outline-secondary border-start-0" type="button"
+                      onclick="togglePwd()" aria-label="Afficher le mot de passe" tabindex="-1">
+                <i class="bi bi-eye" id="eye-icon"></i>
               </button>
-            </form>
+            </div>
           </div>
 
-          <div class="card-footer text-center py-3 bg-light border-0" style="border-radius:0 0 16px 16px">
-            <small class="text-muted">
-              Pas encore de compte ?
-              <a href="{{ url_for('auth.register') }}" class="text-success fw-semibold text-decoration-none">
-                <i class="bi bi-person-plus me-1"></i>Créer un compte
-              </a>
-            </small>
+          <div class="mb-4 d-flex align-items-center gap-2">
+            <input type="checkbox" class="form-check-input m-0" id="remember" name="remember">
+            <label class="form-check-label" for="remember" style="font-size:.85rem;font-weight:400">
+              Rester connecté
+            </label>
           </div>
-        </div>
 
-        <p class="text-center text-white-50 mt-3 small">
-          Application réservée au personnel autorisé.<br>
-          Contactez l'administrateur pour tout accès.
-        </p>
+          <button type="submit" class="btn btn-success w-100 fw-semibold" id="btnLogin">
+            <i class="bi bi-box-arrow-in-right me-2"></i>Se connecter
+          </button>
+        </form>
+      </div>
+
+      <!-- Pied -->
+      <div class="auth-footer">
+        Pas encore de compte ?
+        <a href="{{ url_for('auth.register') }}" class="text-success fw-semibold text-decoration-none ms-1">
+          <i class="bi bi-person-plus me-1"></i>Créer un compte
+        </a>
       </div>
     </div>
+
+    <p class="auth-note">
+      Application réservée au personnel autorisé.<br>
+      Contactez l'administrateur pour tout accès.
+    </p>
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 function togglePwd() {
   const pwd = document.getElementById('pwd');
@@ -100,8 +191,9 @@ function togglePwd() {
   else { pwd.type = 'password'; icon.className = 'bi bi-eye'; }
 }
 document.querySelector('form').addEventListener('submit', function() {
-  document.getElementById('btnLogin').disabled = true;
-  document.getElementById('btnLogin').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Connexion…';
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Connexion…';
 });
 </script>
 </body>
