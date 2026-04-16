@@ -174,10 +174,10 @@ def _lire_srid(chemin_shp: str) -> int | None:
 #  Conversion GeoJSON
 # ══════════════════════════════════════════════════════════════════════════════
 
-def shp_to_geojson(chemin_shp: str, max_features: int = 500) -> dict:
+def shp_to_geojson(chemin_shp: str, max_features: int | None = None) -> dict:
     """
     Convertit un Shapefile en FeatureCollection GeoJSON.
-    Limité à max_features entités pour la performance (aperçu carte).
+    max_features=None (défaut) → aucune limite, toutes les entités.
     Retourne: {type, features, total_features, truncated}
     """
     sf = shapefile.Reader(chemin_shp, encoding='utf-8')
@@ -186,7 +186,7 @@ def shp_to_geojson(chemin_shp: str, max_features: int = 500) -> dict:
     features = []
 
     for i, sr in enumerate(sf.iterShapeRecords()):
-        if i >= max_features:
+        if max_features is not None and i >= max_features:
             break
         try:
             geom = sr.shape.__geo_interface__
@@ -215,11 +215,11 @@ def shp_to_geojson(chemin_shp: str, max_features: int = 500) -> dict:
         'type': 'FeatureCollection',
         'features': features,
         'total_features': total,
-        'truncated': total > max_features,
+        'truncated': max_features is not None and total > max_features,
     }
 
 
-def shp_to_geojson_json(chemin_shp: str, max_features: int = 500) -> str:
+def shp_to_geojson_json(chemin_shp: str, max_features: int | None = None) -> str:
     """Retourne la chaîne JSON du GeoJSON (pour stocker en DB ou répondre en HTTP)."""
     return json.dumps(shp_to_geojson(chemin_shp, max_features), ensure_ascii=False)
 

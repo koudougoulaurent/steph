@@ -219,18 +219,7 @@
         <div id="map-terrain"></div>
       </div>
 
-      {% if couche.nombre_entites > 500 %}
-      <div class="card-footer bg-white">
-        <div class="geojson-note">
-          <i class="bi bi-info-circle me-1"></i>
-          Aperçu limité à <strong>500 entités</strong> sur {{ '{:,}'.format(couche.nombre_entites) }} totales.
-          <a href="{{ url_for('donnees_terrain.geojson', id=couche.id, complet=1) }}"
-             class="ms-1" target="_blank">
-            <i class="bi bi-download me-1"></i>Télécharger le GeoJSON complet
-          </a>
-        </div>
-      </div>
-      {% endif %}
+
     </div>
 
     <!-- Actions danger -->

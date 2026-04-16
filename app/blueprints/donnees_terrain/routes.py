@@ -352,14 +352,12 @@ def detail(id):
 def geojson(id):
     couche = db.get_or_404(CoucheDonneesTerrain, id)
 
-    # Re-générer si le fichier existe encore et qu'on veut tout
-    complet = request.args.get('complet', '0') == '1'
-
-    if complet and couche.chemin_shp and os.path.exists(couche.chemin_shp):
-        data = sr.shp_to_geojson(couche.chemin_shp, max_features=99999)
+    # Toujours lire depuis le fichier SHP sur disque → aucune limite d'entités
+    if couche.chemin_shp and os.path.exists(couche.chemin_shp):
+        data = sr.shp_to_geojson(couche.chemin_shp)  # max_features=None → tout
         return jsonify(data)
 
-    # Sinon retourner l'aperçu stocké
+    # Fallback : aperçu stocké en base (si fichier supprimé après redémarrage)
     if couche.geojson_apercu:
         return current_app.response_class(
             couche.geojson_apercu,
