@@ -59,10 +59,28 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     DEBUG = False
     SESSION_COOKIE_SECURE = True          # Exige HTTPS en production
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        f"sqlite:///{os.path.join(BASE_DIR, 'vegesuivi_prod.db')}"
-    # Pour PostgreSQL/PostGIS : changer pour :
-    # postgresql://user:password@localhost/vegesuivi_db
+
+    # Neon / Render fournissent DATABASE_URL au format postgresql://…?sslmode=require
+    # Certains providers (Heroku) utilisent encore postgres://, on corrige au cas où.
+    _raw_db_url = os.environ.get('DATABASE_URL', '')
+    SQLALCHEMY_DATABASE_URI = (
+        _raw_db_url.replace('postgres://', 'postgresql://', 1)
+        if _raw_db_url
+        else f"sqlite:///{os.path.join(BASE_DIR, 'vegesuivi_prod.db')}"
+    )
+
+    # ── Options moteur SQLAlchemy pour PostgreSQL serverless (Neon) ────────────
+    # pool_pre_ping : vérifie la connexion avant chaque requête (Neon coupe les
+    #                 connexions inactives après 5 minutes).
+    # pool_size / max_overflow : limités pour le plan gratuit Neon (max 10 cnx).
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_size': 5,
+        'max_overflow': 2,
+        'pool_timeout': 30,
+        'pool_recycle': 300,    # recycle les cnx toutes les 5 min
+        'connect_args': {'connect_timeout': 10},
+    }
 
     @classmethod
     def init_app(cls, app):

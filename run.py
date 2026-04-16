@@ -6,8 +6,10 @@ Direction Régionale de l'Environnement
 
 from app import create_app, db
 from app.models import User, Couverture, FeuxBrousse, SiteVulnerable, IndicateurBraconnage, Rapport, CampagneCollecte
+import os
 
-app = create_app()
+config_name = os.environ.get('FLASK_CONFIG', 'default')
+app = create_app(config_name)
 
 @app.shell_context_processor
 def make_shell_context():

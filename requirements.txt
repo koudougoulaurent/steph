@@ -28,6 +28,13 @@ tifffile>=2023.1.0
 # Visualisation raster — cartes colorimétriques des indices
 matplotlib>=3.7.0
 
+# ── Production ───────────────────────────────────────────────────
+# Serveur WSGI (remplace le dev server Flask en production)
+gunicorn>=21.2.0
+
+# Driver PostgreSQL (Railway, Render…)
+psycopg2-binary>=2.9.9
+
 # Lecture Shapefile terrain (import de données SIG .shp)
 pyshp>=2.3.0
 
