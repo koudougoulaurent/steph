@@ -14,6 +14,7 @@ from app.models import (
     IndicateurBraconnage, ObservationTerrain, ClasseCouverture,
     CampagneCollecte, Rapport
 )
+from app.models.donnees_shp import CoucheDonneesTerrain
 
 
 @api_bp.route('/status')
@@ -54,6 +55,11 @@ def kpis():
         ObservationTerrain.date_observation >= datetime.combine(debut_mois, datetime.min.time())
     ).count()
 
+    couches_terrain = CoucheDonneesTerrain.query.filter_by(statut='valide').count()
+    entites_terrain = int(db.session.query(
+        func.coalesce(func.sum(CoucheDonneesTerrain.nombre_entites), 0)
+    ).filter_by(statut='valide').scalar() or 0)
+
     return jsonify({
         'feux_annee': feux_annee,
         'superficie_brulee': round(float(superficie), 0),
@@ -65,6 +71,8 @@ def kpis():
         'campagnes_cours': campagnes_cours,
         'rapports_annee': rapports_annee,
         'obs_mois': obs_mois,
+        'couches_terrain': couches_terrain,
+        'entites_terrain': entites_terrain,
         'refreshed_at': datetime.utcnow().strftime('%H:%M:%S')
     })
 

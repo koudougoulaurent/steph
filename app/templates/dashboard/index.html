@@ -83,7 +83,101 @@
       </div>
     </div>
   </div>
+
+  <div class="col-6 col-md-3">
+    <div class="kpi-card border-start border-4 border-primary">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <p class="kpi-label">Couches terrain SHP</p>
+          <h2 class="kpi-value text-primary" id="kpi-couches">{{ stats.couches_terrain }}</h2>
+          <small class="text-muted"><span id="kpi-entites">{{ "{:,}".format(stats.entites_terrain).replace(',', ' ') }}</span> entités</small>
+        </div>
+        <div class="kpi-icon bg-primary-subtle"><i class="bi bi-layers-fill text-primary fs-3"></i></div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- ══ GRAPHIQUES DONNÉES TERRAIN ══ -->
+<div class="row g-3 mb-4">
+  <!-- Répartition géométrie -->
+  <div class="col-12 col-md-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-layers me-2 text-primary"></i>Types de géométries</h6>
+        <a href="{{ url_for('donnees_terrain.index') }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-folder2-open me-1"></i>Tout voir
+        </a>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <div id="terrain-no-data" class="text-center text-muted py-4" style="display:none!important">
+          <i class="bi bi-cloud-upload fs-2"></i>
+          <p class="mt-2 mb-0 small">Aucune couche importée</p>
+          <a href="{{ url_for('donnees_terrain.importer') }}" class="btn btn-sm btn-outline-primary mt-2">
+            <i class="bi bi-plus-circle me-1"></i>Importer un fichier SHP
+          </a>
+        </div>
+        <canvas id="chartGeometrie" style="max-height:230px;max-width:230px" class="mx-auto"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Imports par mois -->
+  <div class="col-12 col-md-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white border-bottom">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-calendar3 me-2 text-primary"></i>Imports SHP — 12 derniers mois</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="chartImportsMois" style="max-height:230px"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 5 DERNIÈRES COUCHES TERRAIN ══ -->
+{% if couches_recentes %}
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-primary"></i>Dernières couches importées</h6>
+        <a href="{{ url_for('donnees_terrain.index') }}" class="btn btn-sm btn-outline-primary">Toutes les couches</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Réf.</th><th>Nom</th><th>Type</th><th>Entités</th><th>Source</th><th>Importé le</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in couches_recentes %}
+            <tr>
+              <td><small class="text-muted">{{ c.reference }}</small></td>
+              <td class="fw-semibold">{{ c.nom }}</td>
+              <td>
+                <span class="badge bg-primary-subtle text-primary">
+                  <i class="{{ c.icone_geometrie }} me-1"></i>{{ c.type_geometrie or '?' }}
+                </span>
+              </td>
+              <td><span class="badge bg-success-subtle text-success">{{ "{:,}".format(c.nombre_entites).replace(',', ' ') }}</span></td>
+              <td><small class="text-muted">{{ c.source or '—' }}</small></td>
+              <td><small>{{ c.date_upload.strftime('%d/%m/%Y') }}</small></td>
+              <td>
+                <a href="{{ url_for('donnees_terrain.detail', id=c.id) }}" class="btn btn-xs btn-outline-secondary py-0 px-2">
+                  <i class="bi bi-eye"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- ══ GRAPHIQUES ══ -->
 <div class="row g-3 mb-4">
@@ -229,7 +323,7 @@
               <tr>
                 <td><small class="text-muted">{{ c.reference }}</small></td>
                 <td class="fw-semibold">{{ c.nom }}</td>
-                <td><small>{{ c.zone or '—' }}</small></td>
+                <td><small>{{ c.zone_couverte or '—' }}</small></td>
                 <td><small>{{ c.date_debut.strftime('%d/%m/%Y') if c.date_debut else '—' }}</small></td>
                 <td><small>{{ c.date_fin_prevue.strftime('%d/%m/%Y') if c.date_fin_prevue else '—' }}</small></td>
                 <td class="text-center">
@@ -323,6 +417,10 @@ function refreshKpis() {
       set('kpi-braco-grave', d.braconnage_grave);
       set('kpi-campagnes', d.campagnes_cours);
       set('kpi-rapports', d.rapports_annee);
+      set('kpi-couches', d.couches_terrain);
+      if (d.entites_terrain !== undefined) {
+        set('kpi-entites', d.entites_terrain.toLocaleString('fr-FR') + ' entités');
+      }
       const ts = document.getElementById('kpi-last-update');
       if (ts) ts.textContent = '✓ Mis à jour à ' + d.refreshed_at;
     })
@@ -338,6 +436,71 @@ function refreshKpis() {
 // Premier refresh après 5 s, puis toutes les 60 s
 setTimeout(refreshKpis, 5000);
 setInterval(refreshKpis, 60000);
+
+// ── Graphiques Données terrain ──────────────────────────────
+fetch("{{ url_for('dashboard.api_stats_donnees_terrain') }}")
+  .then(r => r.json())
+  .then(d => {
+    // Donut répartition géométrie
+    const rep = d.repartition;
+    const canvasGeom = document.getElementById('chartGeometrie');
+    if (!rep || rep.length === 0) {
+      if (canvasGeom) canvasGeom.style.display = 'none';
+      const noData = document.getElementById('terrain-no-data');
+      if (noData) noData.style.removeProperty('display');
+    } else {
+      new Chart(canvasGeom, {
+        type: 'doughnut',
+        data: {
+          labels: rep.map(r => r.type + ' (' + r.couches + ' couche' + (r.couches > 1 ? 's' : '') + ')'),
+          datasets: [{
+            data: rep.map(r => r.entites),
+            backgroundColor: rep.map(r => r.couleur),
+            borderWidth: 2,
+            borderColor: '#fff',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          cutout: '60%',
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString('fr-FR')} entités`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Bar chart imports par mois
+    new Chart(document.getElementById('chartImportsMois'), {
+      type: 'bar',
+      data: {
+        labels: d.imports_labels,
+        datasets: [{
+          label: 'Couches importées',
+          data: d.imports_data,
+          backgroundColor: 'rgba(41,128,185,0.65)',
+          borderColor: '#2980b9',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } }, title: { display: true, text: 'Nb couches', font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  })
+  .catch(err => console.warn('Stats terrain:', err));
 </script>
 
 <style>

@@ -13,6 +13,7 @@ from app.models import (
     Couverture, FeuxBrousse, SiteVulnerable,
     IndicateurBraconnage, CampagneCollecte, Rapport, ClasseCouverture
 )
+from app.models.donnees_shp import CoucheDonneesTerrain
 
 
 @dashboard_bp.route('/')
@@ -22,7 +23,6 @@ def index():
     """Tableau de bord principal avec KPI et résumés"""
     today = date.today()
     debut_annee = today.replace(month=1, day=1)
-    debut_trimestre = today.replace(month=((today.month - 1) // 3) * 3 + 1, day=1)
 
     # KPI généraux
     stats = {
@@ -42,6 +42,11 @@ def index():
         'campagnes_cours': CampagneCollecte.query.filter_by(statut='en_cours').count(),
         'rapports_generes': Rapport.query.filter(
             Rapport.created_at >= debut_annee).count(),
+        # ── Données terrain SHP ──────────────────────────────────────────
+        'couches_terrain': CoucheDonneesTerrain.query.filter_by(statut='valide').count(),
+        'entites_terrain': int(db.session.query(
+            func.coalesce(func.sum(CoucheDonneesTerrain.nombre_entites), 0)
+        ).filter_by(statut='valide').scalar() or 0),
     }
 
     # Évolution végétation (dernières années disponibles)
@@ -64,13 +69,18 @@ def index():
         statut='en_cours').order_by(
         CampagneCollecte.date_debut.desc()).limit(5).all()
 
+    # 5 dernières couches terrain importées
+    couches_recentes = CoucheDonneesTerrain.query.filter_by(statut='valide').order_by(
+        CoucheDonneesTerrain.date_upload.desc()).limit(5).all()
+
     return render_template('dashboard/index.html',
                            title='Tableau de bord',
                            stats=stats,
                            annees_dispo=annees_dispo,
                            feux_recents=feux_recents,
                            alertes=alertes,
-                           campagnes=campagnes)
+                           campagnes=campagnes,
+                           couches_recentes=couches_recentes)
 
 
 @dashboard_bp.route('/api/stats-evolution')
@@ -122,3 +132,58 @@ def api_stats_feux():
         mois_data.append(count)
 
     return jsonify({'labels': mois_labels, 'data': mois_data})
+
+
+@dashboard_bp.route('/api/stats-donnees-terrain')
+@login_required
+def api_stats_donnees_terrain():
+    """API : Répartition des couches terrain par type de géométrie + imports mensuels"""
+    # Répartition par type de géométrie
+    repartition = db.session.query(
+        CoucheDonneesTerrain.type_geometrie,
+        func.count(CoucheDonneesTerrain.id).label('nb_couches'),
+        func.coalesce(func.sum(CoucheDonneesTerrain.nombre_entites), 0).label('nb_entites')
+    ).filter_by(statut='valide').group_by(
+        CoucheDonneesTerrain.type_geometrie
+    ).order_by(func.count(CoucheDonneesTerrain.id).desc()).all()
+
+    couleurs = {
+        'Polygone':  '#27ae60',
+        'Point':     '#2980b9',
+        'Polyligne': '#e67e22',
+        'MultiPolygone': '#8e44ad',
+        'MultiPoint':    '#16a085',
+        'MultiPolyligne':'#e74c3c',
+    }
+
+    # Imports par mois sur les 12 derniers mois
+    today = date.today()
+    imports_mois = []
+    imports_labels = []
+    import calendar
+    for i in range(11, -1, -1):
+        y = today.year if today.month - i > 0 else today.year - 1
+        m = (today.month - i - 1) % 12 + 1
+        debut_m = datetime(y, m, 1)
+        if m == 12:
+            fin_m = datetime(y + 1, 1, 1)
+        else:
+            fin_m = datetime(y, m + 1, 1)
+        cnt = CoucheDonneesTerrain.query.filter(
+            CoucheDonneesTerrain.date_upload >= debut_m,
+            CoucheDonneesTerrain.date_upload < fin_m,
+            CoucheDonneesTerrain.statut == 'valide'
+        ).count()
+        imports_labels.append(calendar.month_abbr[m])
+        imports_mois.append(cnt)
+
+    return jsonify({
+        'repartition': [{
+            'type':      r.type_geometrie or 'Inconnu',
+            'couches':   r.nb_couches,
+            'entites':   int(r.nb_entites),
+            'couleur':   couleurs.get(r.type_geometrie, '#95a5a6')
+        } for r in repartition],
+        'imports_labels': imports_labels,
+        'imports_data':   imports_mois,
+    })
