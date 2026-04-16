@@ -40,7 +40,7 @@ body {
 
 /* ---------- Navbar ---------- */
 .navbar {
-  height: var(--navbar-height);
+  min-height: var(--navbar-height);
   background: linear-gradient(135deg, var(--vs-dark) 0%, var(--vs-green) 100%) !important;
   box-shadow: 0 2px 12px rgba(0,0,0,.25);
 }
@@ -220,7 +220,137 @@ body {
   .card { box-shadow: none !important; border: 1px solid #dee2e6 !important; }
 }
 
-/* ---------- Responsive ---------- */
+/* ============================================================
+   RESPONSIVE — MOBILE FIRST
+   ============================================================ */
+
+/* ---------- iOS safe area (encoche, Dynamic Island) ---------- */
+@supports (padding: env(safe-area-inset-top)) {
+  .navbar {
+    padding-top: env(safe-area-inset-top);
+    min-height: calc(var(--navbar-height) + env(safe-area-inset-top));
+  }
+  .main-content {
+    padding-top: calc(var(--navbar-height) + env(safe-area-inset-top) + 1rem);
+    padding-left:  env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .footer-bar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ---------- Menu mobile déroulé (hamburger ouvert) ---------- */
+@media (max-width: 991.98px) {
+
+  /* Le nav collapse prend tout l'espace et a un fond propre */
+  #navbarMain {
+    background: linear-gradient(180deg, var(--vs-dark) 0%, #0e3e22 100%);
+    border-top: 1px solid rgba(255,255,255,.12);
+    border-radius: 0 0 14px 14px;
+    padding: .5rem 0 .75rem;
+    margin: 0 -12px; /* aligne les bords avec le container-fluid */
+    overflow-y: auto;
+    max-height: calc(100dvh - var(--navbar-height) - 16px);
+  }
+
+  /* Chaque lien = minimum 44px pour iOS Human Interface Guidelines */
+  #navbarMain .nav-link {
+    min-height: 44px;
+    display: flex !important;
+    align-items: center;
+    padding: .6rem 1.25rem !important;
+    font-size: .95rem !important;
+    border-radius: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    color: rgba(255,255,255,.9) !important;
+  }
+  #navbarMain .nav-link:active,
+  #navbarMain .nav-link.active {
+    background: rgba(255,255,255,.15) !important;
+    color: #fff !important;
+  }
+
+  /* Séparateur entre les grands groupes */
+  #navbarMain > ul.navbar-nav + ul.navbar-nav {
+    border-top: 1px solid rgba(255,255,255,.15);
+    padding-top: .4rem;
+    margin-top: .25rem;
+  }
+
+  /* Flèche dropdown on mobile */
+  #navbarMain .nav-link.dropdown-toggle::after {
+    margin-left: auto;
+  }
+
+  /* Sous-menu dropdown inline (Bootstrap collapse behaviour) */
+  #navbarMain .dropdown-menu {
+    background: rgba(255,255,255,.05) !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  #navbarMain .dropdown-menu .dropdown-item {
+    color: rgba(255,255,255,.8) !important;
+    font-size: .9rem;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    padding: .55rem 2rem !important;
+    border-bottom: 1px solid rgba(255,255,255,.05);
+  }
+  #navbarMain .dropdown-menu .dropdown-item:hover,
+  #navbarMain .dropdown-menu .dropdown-item:active {
+    background: rgba(255,255,255,.12) !important;
+    color: #fff !important;
+  }
+  #navbarMain .dropdown-menu .dropdown-header {
+    color: rgba(255,255,255,.45) !important;
+    font-size: .7rem;
+    padding: .5rem 2rem .25rem !important;
+  }
+  #navbarMain .dropdown-menu hr.dropdown-divider {
+    border-color: rgba(255,255,255,.1);
+    margin: .15rem 0;
+  }
+
+  /* Avatar + nom dans la zone profil */
+  #navbarMain .avatar-sm {
+    width: 32px;
+    height: 32px;
+    font-size: .75rem;
+  }
+
+  /* Date: plus compacte sur mobile */
+  #navbarMain .nav-link.text-white-50 {
+    font-size: .8rem !important;
+    min-height: 36px;
+    border-bottom: none;
+    opacity: .65;
+  }
+
+  /* Navbar brand: taille réduite */
+  .navbar-brand .fs-5 { font-size: .95rem !important; }
+
+  /* Bouton hamburger: zone de tap généreuse */
+  .navbar-toggler {
+    min-width: 44px;
+    min-height: 44px;
+    padding: .5rem .65rem !important;
+    border: 1px solid rgba(255,255,255,.25) !important;
+    border-radius: 8px !important;
+  }
+  .navbar-toggler:focus { box-shadow: 0 0 0 3px rgba(255,255,255,.25) !important; }
+
+  /* main-content: décalage pour le navbar fixe */
+  .main-content {
+    padding-top: 72px;
+  }
+}
+
+/* ---------- Responsive 768px ---------- */
 @media (max-width: 768px) {
   /* KPI cards */
   .kpi-value { font-size: 1.3rem; }
@@ -231,13 +361,8 @@ body {
   .page-header-bar h4 { font-size: .95rem; }
   .page-header-bar .btn { font-size: .8rem; padding: .3rem .6rem; }
 
-  /* Navbar brand: masquer le texte long sur petit écran */
-  .navbar-brand span.brand-text { display: none; }
-  .navbar-brand span.brand-short { display: inline !important; }
-
   /* Sidebar non pertinente sur mobile → pleine largeur */
   .sidebar { display: none; }
-  .main-content { padding-top: 70px; }
 
   /* Tableaux défilables horizontalement */
   .table-responsive-mobile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -264,9 +389,17 @@ body {
 
   /* Modals plein écran sur mobile */
   .modal-dialog { margin: .5rem; }
+  @supports (height: 100dvh) {
+    .modal-dialog-scrollable .modal-body { max-height: calc(100dvh - 180px); }
+  }
 
   /* Alert compact */
   .alert { font-size: .875rem; }
+
+  /* Inputs: 16px pour éviter le zoom iOS */
+  input, select, textarea, .form-control, .form-select {
+    font-size: 16px !important;
+  }
 }
 
 /* Petits écrans (576px et moins) */
@@ -279,8 +412,18 @@ body {
   h2, .h2 { font-size: 1.2rem; }
   .card-body.p-4 { padding: 1rem !important; }
   .d-flex.gap-2.flex-wrap { gap: .3rem !important; }
+
+  /* Modals full-screen sur très petits écrans */
+  .modal-dialog {
+    margin: 0;
+    max-width: 100%;
+    height: 100%;
+  }
+  .modal-content {
+    border-radius: 0;
+    min-height: 100%;
+  }
 }
 
 /* ─── Classe utilitaire pour les tables mobiles ─────── */
 .table-mobile-scroll { display: block; overflow-x: auto; white-space: nowrap; }
-
