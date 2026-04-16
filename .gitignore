@@ -1,3 +1,6 @@
+# ── Scripts utilitaires sensibles (mots de passe en dur) ─────────
+migrate_to_neon.py
+
 # ── Environnement virtuel ─────────────────────────────────────────
 .venv/
 venv/

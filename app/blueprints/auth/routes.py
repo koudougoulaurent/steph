@@ -105,6 +105,59 @@ def logout():
     return redirect(url_for('auth.login'))
 
 
+@auth_bp.route('/register', methods=['GET', 'POST'])
+def register():
+    """Inscription — crée un compte avec rôle 'agent' en attente de validation admin."""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+
+    if request.method == 'POST':
+        nom = request.form.get('nom', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm', '')
+        structure = request.form.get('structure', '').strip()
+
+        errors = []
+        if not nom:
+            errors.append('Le nom complet est obligatoire.')
+        if not email or '@' not in email:
+            errors.append('Adresse email invalide.')
+        if len(password) < 8:
+            errors.append('Le mot de passe doit contenir au moins 8 caractères.')
+        if password != confirm:
+            errors.append('Les deux mots de passe ne correspondent pas.')
+        if User.query.filter_by(email=email).first():
+            errors.append('Cette adresse email est déjà utilisée.')
+
+        if errors:
+            for e in errors:
+                flash(e, 'danger')
+            return render_template('auth/register.html', title='Créer un compte',
+                                   nom=nom, email=email, structure=structure)
+
+        user = User(
+            nom=nom,
+            email=email,
+            role='agent',       # Rôle minimal par défaut
+            structure=structure or None,
+            actif=True,         # Actif directement — l'admin peut désactiver
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        current_app.logger.info('Nouvelle inscription : %s', email)
+        flash(
+            f'Compte créé avec succès ! Bienvenue {nom}. '
+            'Vous pouvez maintenant vous connecter.',
+            'success'
+        )
+        return redirect(url_for('auth.login'))
+
+    return render_template('auth/register.html', title='Créer un compte',
+                           nom='', email='', structure='')
+
+
 @auth_bp.route('/profil', methods=['GET', 'POST'])
 @login_required
 def profil():
