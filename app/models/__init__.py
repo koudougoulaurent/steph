@@ -10,10 +10,11 @@ from app.models.braconnage import IndicateurBraconnage
 from app.models.collecte import CampagneCollecte, ObservationTerrain
 from app.models.rapport import Rapport
 from app.models.donnees_shp import CoucheDonneesTerrain
+from app.models.atlas import ResultatAtlas
 
 __all__ = [
     'User', 'Couverture', 'ClasseCouverture',
     'FeuxBrousse', 'SiteVulnerable', 'IndicateurBraconnage',
     'CampagneCollecte', 'ObservationTerrain', 'Rapport',
-    'CoucheDonneesTerrain',
+    'CoucheDonneesTerrain', 'ResultatAtlas',
 ]

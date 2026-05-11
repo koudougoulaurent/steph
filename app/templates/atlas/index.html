@@ -1,0 +1,1097 @@
+{% extends "base.html" %}
+{% block title %}Atlas des Résultats — VégéSuivi Pro{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+#map-atlas           { height: 440px; }
+#map-avant,
+#map-apres           { height: 320px; border-radius: 4px; }
+.atlas-sidebar       { border-right: 1px solid #e9ecef; }
+.atlas-tabs .nav-link { font-size: .85rem; padding: .4rem .85rem; }
+.atlas-tabs .nav-link.active { background: #2c5f2e; color: #fff; border-color: #2c5f2e; }
+.kpi-val             { font-size: 1.5rem; font-weight: 700; }
+.slider-bar          { background: #f4f4f4; border-top: 1px solid #ddd; padding: 8px 14px; }
+#slider-annee        { width: 100%; accent-color: #2c5f2e; }
+.annee-badge         { background: #2c5f2e; color: #fff; padding: 2px 10px;
+                       border-radius: 10px; font-weight: 700; min-width: 52px;
+                       text-align: center; display: inline-block; }
+.type-obs            { color: #2c5f2e; font-weight: 600; }
+.type-proj           { color: #b45309; font-weight: 600; }
+.layer-dot           { display: inline-block; width: 11px; height: 11px;
+                       border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.chart-container     { position: relative; }
+.tbl-atlas thead th  { background: #2c5f2e; color: #fff; font-size: .78rem;
+                       white-space: nowrap; position: sticky; top: 0; }
+.tbl-atlas           { font-size: .82rem; }
+.scroll-tbl          { max-height: 400px; overflow-y: auto; }
+.var-pos             { color: #16a34a; font-weight: 600; }
+.var-neg             { color: #dc2626; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header-bar">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h4 class="mb-0 fw-bold">Couverture végétale — Boucle du Mouhoun</h4>
+        <small class="text-muted">
+          Données observées
+          {% if annee_obs_min %}{{ annee_obs_min }}–{{ annee_obs_max }}{% endif %}
+          · Projections {{ annee_proj_max }}
+        </small>
+      </div>
+      <div class="d-flex gap-2">
+        {% if current_user.role in ['admin','superviseur'] %}
+        <button class="btn btn-sm btn-outline-secondary" id="btn-seed-demo">
+          Charger démo
+        </button>
+        {% endif %}
+        <a href="{{ url_for('atlas.telecharger_csv') }}" class="btn btn-sm btn-success">
+          <i class="bi bi-download me-1"></i>CSV
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- KPI -->
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 bg-light">
+      <div class="card-body py-2 px-3">
+        <div class="text-muted small mb-1">Superficie totale</div>
+        <div class="kpi-val text-primary">{{ "{:,}".format(superficie_totale)|replace(',', ' ') }} ha</div>
+        <small class="text-muted">Zone d'étude</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 bg-light">
+      <div class="card-body py-2 px-3">
+        <div class="text-muted small mb-1">Forêt-galerie {{ annee_obs_max or '' }}</div>
+        <div class="kpi-val" style="color:#2c5f2e">{{ pct_foret }} %</div>
+        <small class="text-muted">de la superficie</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 bg-light">
+      <div class="card-body py-2 px-3">
+        <div class="text-muted small mb-1">Recul forêt-galerie</div>
+        <div class="kpi-val text-danger">−{{ "{:,}".format(deforestation_ha)|replace(',', ' ') }} ha</div>
+        <small class="text-muted">{{ annee_obs_min or '—' }} → {{ annee_obs_max or '—' }}</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-0 bg-light">
+      <div class="card-body py-2 px-3">
+        <div class="text-muted small mb-1">Forêt-galerie en 2050</div>
+        <div class="kpi-val" style="color:#b45309">{{ "{:,}".format(foret_2050)|replace(',', ' ') }} ha</div>
+        <small class="text-muted">scénario tendanciel</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-1">
+  <div class="card-header p-0 border-bottom-0">
+    <ul class="nav nav-tabs atlas-tabs" id="atlasTab" role="tablist">
+      <li class="nav-item">
+        <a class="nav-link active" id="tab-carte-lnk" data-bs-toggle="tab" href="#tab-carte" role="tab">Carte</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" id="tab-comp-lnk" data-bs-toggle="tab" href="#tab-comparaison" role="tab">Comparaison</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" id="tab-graph-lnk" data-bs-toggle="tab" href="#tab-graphiques" role="tab">Graphiques</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" id="tab-data-lnk" data-bs-toggle="tab" href="#tab-donnees" role="tab">Données</a>
+      </li>
+    </ul>
+  </div>
+
+  <div class="tab-content" id="atlasTabContent">
+
+    <!-- ╔══════════ TAB 1 : CARTE ATLAS ══════════╗ -->
+    <div class="tab-pane fade show active" id="tab-carte" role="tabpanel">
+      <div class="row g-0">
+
+        <!-- Panneau latéral gauche -->
+        <div class="col-lg-3 atlas-sidebar p-3">
+
+          <p class="fw-bold small text-muted mb-2" style="font-size:.75rem">Scénario</p>
+          <div class="mb-3" id="scenario-btns">
+            <div class="btn-group-vertical w-100 btn-group-sm" role="group">
+              <input type="radio" class="btn-check" name="scenario" id="sc-tend" value="tendanciel" checked>
+              <label class="btn btn-outline-primary" for="sc-tend">
+                <i class="bi bi-arrow-right me-1"></i>Tendanciel
+              </label>
+              <input type="radio" class="btn-check" name="scenario" id="sc-opti" value="optimiste">
+              <label class="btn btn-outline-success" for="sc-opti">
+                <i class="bi bi-arrow-up me-1"></i>Optimiste
+              </label>
+              <input type="radio" class="btn-check" name="scenario" id="sc-pess" value="pessimiste">
+              <label class="btn btn-outline-danger" for="sc-pess">
+                <i class="bi bi-arrow-down me-1"></i>Pessimiste
+              </label>
+            </div>
+          </div>
+
+          <hr class="my-2">
+          <p class="fw-bold small text-muted mb-2" style="font-size:.75rem">Unités</p>
+          <div id="layer-toggles" class="mb-3">
+            {% for c in classes %}
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input layer-chk" type="checkbox"
+                     id="lyr-{{ c.id }}" data-id="{{ c.id }}" checked>
+              <label class="form-check-label small" for="lyr-{{ c.id }}">
+                <span class="layer-dot" style="background:{{ c.couleur_hex }}"></span>
+                {{ c.label }}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="d-flex gap-1 mb-3">
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="toggleAllLayers(true)">
+              <i class="bi bi-eye me-1"></i>Tout
+            </button>
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="toggleAllLayers(false)">
+              <i class="bi bi-eye-slash me-1"></i>Aucun
+            </button>
+          </div>
+
+          <hr class="my-2">
+          <p class="fw-bold small text-muted mb-2" style="font-size:.75rem">Statistiques</p>
+          <div id="stats-annee-box" class="small">
+            <p class="text-muted mb-0">—</p>
+          </div>
+
+        </div><!-- /sidebar -->
+
+        <!-- Carte -->
+        <div class="col-lg-9">
+          <div id="map-atlas"></div>
+          <!-- Time slider -->
+          <div class="slider-bar">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <button id="btn-play" class="btn btn-sm btn-primary" style="min-width:90px">
+                <i class="bi bi-play-fill me-1"></i>Animer
+              </button>
+              <div class="d-flex align-items-center gap-2 flex-fill">
+                <small class="text-muted">{{ annees[0] if annees else 1986 }}</small>
+                <input type="range" id="slider-annee" class="flex-fill"
+                       min="{{ annees[0] if annees else 1986 }}"
+                       max="{{ annees[-1] if annees else 2050 }}"
+                       value="{{ annee_obs_max or 2024 }}"
+                       step="1">
+                <small class="text-muted">{{ annees[-1] if annees else 2050 }}</small>
+              </div>
+              <div>
+                <span class="annee-badge" id="annee-badge">{{ annee_obs_max or 2024 }}</span>
+                <span id="type-badge" class="ms-1 small type-obs">Observé</span>
+              </div>
+              <a id="btn-dl-geojson" href="#" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-geo me-1"></i>GeoJSON
+              </a>
+            </div>
+          </div>
+        </div><!-- /map col -->
+
+      </div><!-- /row -->
+    </div><!-- /tab carte -->
+
+
+    <!-- TAB 2 : COMPARAISON -->
+    <div class="tab-pane fade" id="tab-comparaison" role="tabpanel">
+      <div class="p-3">
+
+        <!-- Contrôles -->
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-auto">
+            <label class="form-label small mb-1 fw-bold">Année A (avant)</label>
+            <select class="form-select form-select-sm" id="comp-annee1" style="min-width:100px">
+              {% for a in annees %}
+              <option value="{{ a }}" {% if a == (annee_obs_min or 1986) %}selected{% endif %}>{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label small mb-1 fw-bold">Année B (après)</label>
+            <select class="form-select form-select-sm" id="comp-annee2" style="min-width:100px">
+              {% for a in annees %}
+              <option value="{{ a }}" {% if a == (annee_obs_max or 2024) %}selected{% endif %}>{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label small mb-1 fw-bold">Scénario</label>
+            <select class="form-select form-select-sm" id="comp-scenario">
+              {% for s in scenarios %}
+              <option value="{{ s }}" {% if s == 'tendanciel' %}selected{% endif %}>{{ s|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-primary btn-sm" onclick="lancerComparaison()">
+              <i class="bi bi-arrow-left-right me-1"></i>Comparer
+            </button>
+          </div>
+        </div>
+
+        <!-- 2 cartes -->
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-primary text-white small py-1 fw-bold" id="comp-title1">
+                Année A
+              </div>
+              <div id="map-avant"></div>
+              <div class="card-footer p-2" id="comp-stats1">
+                <div class="text-muted small text-center fst-italic">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-success text-white small py-1 fw-bold" id="comp-title2">
+                Année B
+              </div>
+              <div id="map-apres"></div>
+              <div class="card-footer p-2" id="comp-stats2">
+                <div class="text-muted small text-center fst-italic">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tableau de comparaison -->
+        <div id="comp-table-box"></div>
+
+      </div>
+    </div><!-- /tab comparaison -->
+
+
+    <!-- TAB 3 : GRAPHIQUES -->
+    <div class="tab-pane fade" id="tab-graphiques" role="tabpanel">
+      <div class="p-3">
+
+        <!-- Contrôles graphiques -->
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-auto">
+            <label class="form-label small mb-1 fw-bold">Scénario</label>
+            <select class="form-select form-select-sm" id="chart-scenario">
+              {% for s in scenarios %}
+              <option value="{{ s }}" {% if s == 'tendanciel' %}selected{% endif %}>{{ s|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label small mb-1 fw-bold">Année min</label>
+            <select class="form-select form-select-sm" id="chart-annee-min">
+              {% for a in annees %}
+              <option value="{{ a }}" {% if a == (annees[0] if annees else 1986) %}selected{% endif %}>{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label small mb-1 fw-bold">Année max</label>
+            <select class="form-select form-select-sm" id="chart-annee-max">
+              {% for a in annees %}
+              <option value="{{ a }}" {% if a == (annees[-1] if annees else 2050) %}selected{% endif %}>{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-primary btn-sm" onclick="chargerGraphiques()">
+              <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+            </button>
+          </div>
+          <div class="col-auto ms-auto">
+            <button class="btn btn-sm btn-outline-secondary" onclick="exporterGraphique('chart-evolution')">
+              <i class="bi bi-image me-1"></i>PNG
+            </button>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <!-- Graphique évolution linéaire -->
+          <div class="col-12">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-light py-2">
+                <span class="fw-bold small">Évolution (ha)</span>
+                <small class="text-muted ms-2" id="chart-scenario-label">tendanciel</small>
+              </div>
+              <div class="card-body">
+                <div class="chart-container" style="height:300px">
+                  <canvas id="chart-evolution"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Camembert + Barres comparatives -->
+          <div class="col-md-5">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-header bg-light py-2">
+                <span class="fw-bold small">Répartition par unité</span>
+                <select class="form-select form-select-sm d-inline-block ms-2" style="width:auto"
+                        id="pie-annee" onchange="rafraichirCamembert()">
+                  {% for a in annees %}
+                  <option value="{{ a }}" {% if a == (annee_obs_max or 2024) %}selected{% endif %}>{{ a }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="card-body d-flex align-items-center justify-content-center">
+                <div class="chart-container" style="height:260px; width:100%">
+                  <canvas id="chart-pie"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-7">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-header bg-light py-2">
+                <span class="fw-bold small">Comparaison deux années</span>
+              </div>
+              <div class="card-body">
+                <div class="row g-2 mb-2">
+                  <div class="col-auto">
+                    <select class="form-select form-select-sm" id="bar-annee1" onchange="rafraichirBarres()">
+                      {% for a in annees %}
+                      <option value="{{ a }}" {% if a == (annee_obs_min or 1986) %}selected{% endif %}>{{ a }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-auto align-self-center text-muted small">vs</div>
+                  <div class="col-auto">
+                    <select class="form-select form-select-sm" id="bar-annee2" onchange="rafraichirBarres()">
+                      {% for a in annees %}
+                      <option value="{{ a }}" {% if a == (annee_obs_max or 2024) %}selected{% endif %}>{{ a }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+                <div class="chart-container" style="height:220px">
+                  <canvas id="chart-barres"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /tab graphiques -->
+
+
+    <!-- TAB 4 : DONNÉES -->
+    <div class="tab-pane fade" id="tab-donnees" role="tabpanel">
+      <div class="p-3">
+        <div class="card border mb-3">
+          <div class="card-header py-2">
+            <strong class="small">Filtrer les données</strong>
+          </div>
+          <div class="card-body">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Année</label>
+                <select class="form-select form-select-sm" id="req-annee">
+                  <option value="">Toutes</option>
+                  {% for a in annees %}
+                  <option value="{{ a }}">{{ a }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small mb-1">Classe</label>
+                <select class="form-select form-select-sm" id="req-classe">
+                  <option value="">Toutes</option>
+                  {% for c in classes %}
+                  <option value="{{ c.id }}">{{ c.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Scénario</label>
+                <select class="form-select form-select-sm" id="req-scenario">
+                  <option value="">Tous</option>
+                  <option value="tendanciel">Tendanciel</option>
+                  <option value="optimiste">Optimiste</option>
+                  <option value="pessimiste">Pessimiste</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Type</label>
+                <select class="form-select form-select-sm" id="req-type">
+                  <option value="">Tous</option>
+                  <option value="observe">Observé</option>
+                  <option value="projete">Projeté</option>
+                </select>
+              </div>
+              <div class="col-md-1">
+                <label class="form-label small mb-1">Sup. min (ha)</label>
+                <input type="number" class="form-control form-control-sm" id="req-sup-min" min="0">
+              </div>
+              <div class="col-md-1">
+                <label class="form-label small mb-1">Sup. max (ha)</label>
+                <input type="number" class="form-control form-control-sm" id="req-sup-max" min="0">
+              </div>
+              <div class="col-md-1">
+                <button class="btn btn-success btn-sm w-100" onclick="lancerRequete()">Filtrer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Résultats + téléchargements -->
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="fw-bold small" id="req-count">— résultat(s)</span>
+          <div class="d-flex gap-2">
+            <a href="{{ url_for('atlas.telecharger_csv') }}" class="btn btn-sm btn-success">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV complet
+            </a>
+            <button class="btn btn-sm btn-outline-success" onclick="exporterCSVFiltres()">
+              <i class="bi bi-filter me-1"></i>CSV filtré
+            </button>
+            <button class="btn btn-sm btn-outline-info" id="btn-dl-geojson2">
+              <i class="bi bi-geo me-1"></i>GeoJSON (année)
+            </button>
+          </div>
+        </div>
+
+        <div class="scroll-tbl">
+          <table class="table table-hover table-bordered tbl-atlas mb-0">
+            <thead>
+              <tr>
+                <th>Année</th>
+                <th>Classe</th>
+                <th>Zone</th>
+                <th>Superficie (ha)</th>
+                <th>% Zone</th>
+                <th>Type</th>
+                <th>Scénario</th>
+              </tr>
+            </thead>
+            <tbody id="req-tbody">
+              <tr><td colspan="7" class="text-center text-muted fst-italic py-3">
+                Utilisez le formulaire ci-dessus pour filtrer les données.
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /tab données -->
+
+  </div><!-- /tab-content -->
+</div><!-- /card -->
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   ATLAS — JavaScript principal
+   ═══════════════════════════════════════════════════════════════════ */
+
+// ── Données Jinja (transmises au JS) ─────────────────────────────
+const ANNEES    = {{ annees | tojson }};
+const CLASSES   = {{ classes | map(attribute='id') | list | tojson }};
+const SCENARIOS = {{ scenarios | tojson }};
+const URL_STATS = "{{ url_for('atlas.api_statistiques') }}";
+const URL_EVO   = "{{ url_for('atlas.api_evolution') }}";
+const URL_GEOJSON = "/atlas/api/geojson/";     // + annee
+const URL_COMP  = "{{ url_for('atlas.api_comparaison') }}";
+const URL_REQ   = "{{ url_for('atlas.api_requete') }}";
+const URL_DL_GEOJSON = "/atlas/telecharger/geojson/";  // + annee
+const URL_SEED  = "{{ url_for('atlas.seed_demo') }}";
+
+// ── Variables globales ────────────────────────────────────────────
+let mapAtlas = null;
+let layerGroups = {};       // classe_id → L.circleMarker group
+let currentAnnee = {{ annee_obs_max or 2024 }};
+let currentScenario = 'tendanciel';
+let activeClasses = new Set(CLASSES);
+let animInterval  = null;
+
+// ── Helpers ───────────────────────────────────────────────────────
+function getScenario() {
+  const chk = document.querySelector('input[name="scenario"]:checked');
+  return chk ? chk.value : 'tendanciel';
+}
+
+function fetchJSON(url) {
+  return fetch(url, {
+    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+  }).then(r => r.json());
+}
+
+function formaterHa(val) {
+  return new Intl.NumberFormat('fr-FR').format(Math.round(val)) + ' ha';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MAP ATLAS
+// ─────────────────────────────────────────────────────────────────
+
+function initMapAtlas() {
+  mapAtlas = L.map('map-atlas', {
+    center: [12.0, -4.2],
+    zoom: 9,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 18,
+  }).addTo(mapAtlas);
+
+  const satellite = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Tiles © Esri', maxZoom: 18 }
+  );
+  L.control.layers(
+    { 'Carte': mapAtlas.layers ? undefined : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'© OSM'}).addTo(mapAtlas),
+      'Satellite': satellite },
+    {}, { position: 'topleft', collapsed: true }
+  );
+
+  chargerCouche(currentAnnee, currentScenario);
+}
+
+async function chargerCouche(annee, scenario) {
+  // Nettoyer toutes les couches actuelles
+  Object.values(layerGroups).forEach(lg => {
+    if (mapAtlas.hasLayer(lg)) mapAtlas.removeLayer(lg);
+  });
+  layerGroups = {};
+
+  const url = `${URL_GEOJSON}${annee}?scenario=${scenario}`;
+  const data = await fetchJSON(url);
+
+  if (!data.features || data.features.length === 0) return;
+
+  // Surface max pour normaliser la taille des bulles
+  const surfaces = data.features.map(f => f.properties.superficie_ha || 0);
+  const supMax   = Math.max(...surfaces, 1);
+
+  data.features.forEach(f => {
+    const p   = f.properties;
+    const cid = p.classe_id;
+    const [lng, lat] = f.geometry.coordinates;
+
+    if (!layerGroups[cid]) {
+      layerGroups[cid] = L.layerGroup();
+    }
+
+    // Rayon proportionnel à la superficie (10–40 px)
+    const rayon = 10 + Math.sqrt(p.superficie_ha / supMax) * 30;
+
+    const marker = L.circleMarker([lat, lng], {
+      radius:      rayon,
+      fillColor:   p.classe_couleur,
+      color:       '#fff',
+      weight:      2,
+      opacity:     0.9,
+      fillOpacity: 0.75,
+    });
+
+    marker.bindPopup(`
+      <div style="min-width:180px">
+        <div class="fw-bold" style="color:${p.classe_couleur}">${p.classe_label}</div>
+        <hr class="my-1">
+        <table class="table table-sm table-borderless mb-0" style="font-size:.8rem">
+          <tr><td>Superficie</td><td class="fw-bold">${formaterHa(p.superficie_ha)}</td></tr>
+          <tr><td>Part (%)</td><td class="fw-bold">${p.superficie_pct} %</td></tr>
+          <tr><td>Année</td><td class="fw-bold">${p.annee}</td></tr>
+          <tr><td>Type</td><td class="fw-bold">${p.type_donnee === 'observe' ? 'Observé' : 'Projeté'}</td></tr>
+          <tr><td>Scénario</td><td class="fw-bold">${p.scenario}</td></tr>
+        </table>
+      </div>
+    `);
+
+    layerGroups[cid].addLayer(marker);
+  });
+
+  // Ajouter sur la carte selon l'état des toggles
+  Object.entries(layerGroups).forEach(([cid, lg]) => {
+    if (activeClasses.has(parseInt(cid))) {
+      lg.addTo(mapAtlas);
+    }
+  });
+
+  // Mettre à jour les stats dans le panneau latéral
+  afficherStatsAnnee(annee, scenario);
+
+  // Mettre à jour le badge type
+  const typeEl = document.getElementById('type-badge');
+  if (typeEl) {
+    const f = data.features[0];
+    if (f) {
+      const td = f.properties.type_donnee;
+      typeEl.textContent = td === 'observe' ? 'Observé' : 'Projeté';
+      typeEl.className   = `ms-1 small ${td === 'observe' ? 'type-obs' : 'type-proj'}`;
+    }
+  }
+}
+
+async function afficherStatsAnnee(annee, scenario) {
+  const box = document.getElementById('stats-annee-box');
+  if (!box) return;
+
+  const data = await fetchJSON(`${URL_STATS}?annee=${annee}&scenario=${scenario}`);
+  if (!data.resultats) { box.innerHTML = '<p class="text-muted small">Pas de données.</p>'; return; }
+
+  let html = `<div class="mb-1 fw-bold">${annee} · <em>${scenario}</em></div>
+              <div class="small mb-1 text-muted">Total : ${formaterHa(data.superficie_totale_ha)}</div>
+              <div style="font-size:.75rem">`;
+  data.resultats.forEach(r => {
+    html += `<div class="d-flex justify-content-between">
+               <span><span class="layer-dot" style="background:${r.classe_couleur}"></span>${r.classe_label}</span>
+               <span class="fw-bold">${r.superficie_pct}%</span>
+             </div>`;
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+// ── Slider temporel ───────────────────────────────────────────────
+const slider   = document.getElementById('slider-annee');
+const badgeEl  = document.getElementById('annee-badge');
+
+slider.addEventListener('input', () => {
+  const a = parseInt(slider.value);
+  if (badgeEl) badgeEl.textContent = a;
+  currentAnnee = a;
+  currentScenario = getScenario();
+  chargerCouche(a, currentScenario);
+  // Mettre à jour le lien GeoJSON
+  const dlBtn = document.getElementById('btn-dl-geojson');
+  if (dlBtn) dlBtn.href = `${URL_DL_GEOJSON}${a}?scenario=${currentScenario}`;
+});
+
+// ── Bouton Play ───────────────────────────────────────────────────
+document.getElementById('btn-play').addEventListener('click', function () {
+  if (animInterval) {
+    clearInterval(animInterval);
+    animInterval = null;
+    this.innerHTML = '<i class="bi bi-play-fill me-1"></i>Animer';
+    this.classList.replace('btn-danger', 'btn-primary');
+    return;
+  }
+  this.innerHTML = '<i class="bi bi-stop-fill me-1"></i>Arrêter';
+  this.classList.replace('btn-primary', 'btn-danger');
+
+  const anneeMin = parseInt(slider.min);
+  const anneeMax = parseInt(slider.max);
+  let idx = ANNEES.indexOf(parseInt(slider.value));
+  if (idx < 0 || idx >= ANNEES.length - 1) idx = 0;
+
+  animInterval = setInterval(() => {
+    idx++;
+    if (idx >= ANNEES.length) {
+      idx = 0;
+    }
+    const a = ANNEES[idx];
+    slider.value    = a;
+    if (badgeEl) badgeEl.textContent = a;
+    currentAnnee = a;
+    chargerCouche(a, getScenario());
+  }, 1000);
+});
+
+// ── Changement de scénario ────────────────────────────────────────
+document.querySelectorAll('input[name="scenario"]').forEach(el => {
+  el.addEventListener('change', () => {
+    currentScenario = getScenario();
+    chargerCouche(currentAnnee, currentScenario);
+  });
+});
+
+// ── Layer toggles ─────────────────────────────────────────────────
+document.querySelectorAll('.layer-chk').forEach(chk => {
+  chk.addEventListener('change', () => {
+    const cid = parseInt(chk.dataset.id);
+    if (chk.checked) {
+      activeClasses.add(cid);
+      if (layerGroups[cid]) layerGroups[cid].addTo(mapAtlas);
+    } else {
+      activeClasses.delete(cid);
+      if (layerGroups[cid]) mapAtlas.removeLayer(layerGroups[cid]);
+    }
+  });
+});
+
+function toggleAllLayers(state) {
+  document.querySelectorAll('.layer-chk').forEach(chk => {
+    chk.checked = state;
+    const cid = parseInt(chk.dataset.id);
+    if (state) {
+      activeClasses.add(cid);
+      if (layerGroups[cid]) layerGroups[cid].addTo(mapAtlas);
+    } else {
+      activeClasses.delete(cid);
+      if (layerGroups[cid]) mapAtlas.removeLayer(layerGroups[cid]);
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// COMPARAISON AVANT / APRÈS
+// ─────────────────────────────────────────────────────────────────
+let mapAvant = null, mapApres = null;
+let lgAvant = {}, lgApres = {};
+
+function initMapsComp() {
+  if (mapAvant) return;
+  mapAvant = L.map('map-avant', { center: [12.0, -4.2], zoom: 8 });
+  mapApres = L.map('map-apres', { center: [12.0, -4.2], zoom: 8 });
+  [mapAvant, mapApres].forEach(m => {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OSM', maxZoom: 18 }).addTo(m);
+  });
+  // Synchroniser les deux cartes
+  mapAvant.on('move', () => mapApres.setView(mapAvant.getCenter(), mapAvant.getZoom(), {animate: false}));
+  mapApres.on('move', () => mapAvant.setView(mapApres.getCenter(), mapApres.getZoom(), {animate: false}));
+}
+
+async function chargerMapComp(map, lgStore, annee, scenario) {
+  Object.values(lgStore).forEach(lg => { if (map.hasLayer(lg)) map.removeLayer(lg); });
+  for (const k in lgStore) delete lgStore[k];
+
+  const url  = `${URL_GEOJSON}${annee}?scenario=${scenario}`;
+  const data = await fetchJSON(url);
+  if (!data.features) return;
+
+  const supMax = Math.max(...data.features.map(f => f.properties.superficie_ha || 0), 1);
+
+  data.features.forEach(f => {
+    const p = f.properties;
+    const [lng, lat] = f.geometry.coordinates;
+    const cid  = p.classe_id;
+    if (!lgStore[cid]) lgStore[cid] = L.layerGroup().addTo(map);
+    const rayon = 10 + Math.sqrt(p.superficie_ha / supMax) * 25;
+    L.circleMarker([lat, lng], {
+      radius: rayon, fillColor: p.classe_couleur,
+      color: '#fff', weight: 2, opacity: .9, fillOpacity: .75,
+    }).bindPopup(`<b>${p.classe_label}</b><br>${formaterHa(p.superficie_ha)} — ${p.superficie_pct}%`)
+      .addTo(lgStore[cid]);
+  });
+}
+
+async function lancerComparaison() {
+  initMapsComp();
+  const a1       = document.getElementById('comp-annee1').value;
+  const a2       = document.getElementById('comp-annee2').value;
+  const scenario = document.getElementById('comp-scenario').value;
+
+  document.getElementById('comp-title1').textContent = `Année A — ${a1}`;
+  document.getElementById('comp-title2').textContent = `Année B — ${a2}`;
+
+  await Promise.all([
+    chargerMapComp(mapAvant, lgAvant, a1, scenario),
+    chargerMapComp(mapApres, lgApres, a2, scenario),
+  ]);
+
+  // Tableau comparatif
+  const data = await fetchJSON(`${URL_COMP}?annee1=${a1}&annee2=${a2}&scenario=${scenario}`);
+  afficherTableauComparaison(data);
+}
+
+function afficherTableauComparaison(data) {
+  const box = document.getElementById('comp-table-box');
+  if (!data.comparaison) { box.innerHTML = ''; return; }
+
+  let html = `
+    <div class="card border-0 shadow-sm mt-2">
+      <div class="card-header bg-light py-2 fw-bold small">
+        <i class="bi bi-table me-1"></i>Tableau comparatif ${data.annee1} → ${data.annee2}
+      </div>
+      <div class="table-responsive">
+      <table class="table table-sm table-hover tbl-atlas mb-0">
+        <thead><tr>
+          <th>Classe</th>
+          <th>${data.annee1} (ha)</th>
+          <th>${data.annee2} (ha)</th>
+          <th>Variation (ha)</th>
+          <th>Taux (%)</th>
+          <th>Tendance</th>
+        </tr></thead>
+        <tbody>`;
+  data.comparaison.forEach(r => {
+    const sign  = r.variation_ha >= 0 ? '+' : '';
+    const cls   = r.variation_ha >= 0 ? 'var-pos' : 'var-neg';
+    const icon  = r.variation_ha >= 0 ? 'bi-arrow-up-short' : 'bi-arrow-down-short';
+    html += `<tr>
+      <td><span class="layer-dot" style="background:${r.classe_couleur}"></span>${r.classe_label}</td>
+      <td>${formaterHa(r.superficie_an1)}</td>
+      <td>${formaterHa(r.superficie_an2)}</td>
+      <td class="${cls}">${sign}${formaterHa(r.variation_ha)}</td>
+      <td class="${cls}">${sign}${r.taux_variation.toFixed(1)}%</td>
+      <td><i class="bi ${icon} ${cls} fs-5"></i></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  box.innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// GRAPHIQUES — Chart.js
+// ─────────────────────────────────────────────────────────────────
+let chartEvo = null, chartPie = null, chartBarres = null;
+let evoData  = null;  // cache des données d'évolution
+
+async function chargerGraphiques() {
+  const scenario  = document.getElementById('chart-scenario').value;
+  const anneeMin  = document.getElementById('chart-annee-min').value;
+  const anneeMax  = document.getElementById('chart-annee-max').value;
+
+  document.getElementById('chart-scenario-label').textContent = `Scénario ${scenario}`;
+
+  const url  = `${URL_EVO}?scenario=${scenario}&annee_min=${anneeMin}&annee_max=${anneeMax}`;
+  const data = await fetchJSON(url);
+  evoData    = data;
+
+  // ── Graphique linéaire ──
+  const labels   = data.annees;
+  const datasets = data.classes.map(c => ({
+    label:           c.label,
+    data:            labels.map(a => c.data[a] || null),
+    borderColor:     c.couleur,
+    backgroundColor: c.couleur + '22',
+    fill:            false,
+    tension:         0.3,
+    pointRadius:     4,
+    segment: {
+      borderDash: ctx => {
+        const a = labels[ctx.p1DataIndex];
+        return (data.types && data.types[a] === 'projete') ? [6, 4] : [];
+      },
+    },
+  }));
+
+  const ctx1 = document.getElementById('chart-evolution').getContext('2d');
+  if (chartEvo) chartEvo.destroy();
+  chartEvo = new Chart(ctx1, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${formaterHa(ctx.raw || 0)}`
+        }},
+      },
+      scales: {
+        y: { stacked: false, title: { display: true, text: 'Superficie (ha)', font: { size: 11 } } },
+        x: { title: { display: true, text: 'Année', font: { size: 11 } } },
+      },
+    },
+  });
+
+  // Rafraîchir camembert et barres avec l'année sélectionnée dans leurs selects
+  rafraichirCamembert();
+  rafraichirBarres();
+}
+
+async function rafraichirCamembert() {
+  const annee    = parseInt(document.getElementById('pie-annee').value);
+  const scenario = document.getElementById('chart-scenario').value;
+  const data     = await fetchJSON(`${URL_STATS}?annee=${annee}&scenario=${scenario}`);
+  if (!data.resultats) return;
+
+  const labels = data.resultats.map(r => r.classe_label);
+  const values = data.resultats.map(r => r.superficie_ha);
+  const colors = data.resultats.map(r => r.classe_couleur);
+
+  const ctx = document.getElementById('chart-pie').getContext('2d');
+  if (chartPie) chartPie.destroy();
+  chartPie = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } },
+        tooltip: { callbacks: {
+          label: ctx => ` ${ctx.label}: ${formaterHa(ctx.raw)} (${((ctx.raw / values.reduce((a,b)=>a+b,0))*100).toFixed(1)}%)`
+        }},
+      },
+    },
+  });
+}
+
+async function rafraichirBarres() {
+  const a1       = parseInt(document.getElementById('bar-annee1').value);
+  const a2       = parseInt(document.getElementById('bar-annee2').value);
+  const scenario = document.getElementById('chart-scenario').value;
+  const data     = await fetchJSON(`${URL_COMP}?annee1=${a1}&annee2=${a2}&scenario=${scenario}`);
+  if (!data.comparaison) return;
+
+  const labels = data.comparaison.map(r => r.classe_label);
+  const vals1  = data.comparaison.map(r => r.superficie_an1);
+  const vals2  = data.comparaison.map(r => r.superficie_an2);
+  const colors = data.comparaison.map(r => r.classe_couleur);
+
+  const ctx = document.getElementById('chart-barres').getContext('2d');
+  if (chartBarres) chartBarres.destroy();
+  chartBarres = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: String(a1), data: vals1, backgroundColor: colors.map(c => c + 'aa'), borderColor: colors, borderWidth: 1 },
+        { label: String(a2), data: vals2, backgroundColor: colors.map(c => c + '55'), borderColor: colors, borderWidth: 1, borderDash: [4,2] },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+      scales: { y: { title: { display: true, text: 'ha', font: { size: 10 } } } },
+    },
+  });
+}
+
+function exporterGraphique(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  const link   = document.createElement('a');
+  link.download = `${canvasId}.png`;
+  link.href     = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// REQUÊTES SPATIALES & TABLE
+// ─────────────────────────────────────────────────────────────────
+let _filtresActuels = {};
+
+async function lancerRequete() {
+  const params = new URLSearchParams();
+  const annee    = document.getElementById('req-annee').value;
+  const classeId = document.getElementById('req-classe').value;
+  const scenario = document.getElementById('req-scenario').value;
+  const type     = document.getElementById('req-type').value;
+  const supMin   = document.getElementById('req-sup-min').value;
+  const supMax   = document.getElementById('req-sup-max').value;
+
+  if (annee)    params.set('annee',       annee);
+  if (classeId) params.set('classe_id',   classeId);
+  if (scenario) params.set('scenario',    scenario);
+  if (type)     params.set('type_donnee', type);
+  if (supMin)   params.set('sup_min',     supMin);
+  if (supMax)   params.set('sup_max',     supMax);
+
+  _filtresActuels = Object.fromEntries(params.entries());
+
+  const data = await fetchJSON(`${URL_REQ}?${params.toString()}`);
+  const tbody = document.getElementById('req-tbody');
+  const cntEl = document.getElementById('req-count');
+
+  cntEl.textContent = `${data.count} résultat(s)`;
+
+  if (!data.resultats || data.resultats.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted fst-italic py-3">Aucun résultat.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.resultats.map(r => `
+    <tr>
+      <td><strong>${r.annee}</strong></td>
+      <td><span class="layer-dot" style="background:${r.classe_couleur}"></span>${r.classe_label}</td>
+      <td>${r.zone}</td>
+      <td>${formaterHa(r.superficie_ha)}</td>
+      <td>${r.superficie_pct} %</td>
+      <td><span class="badge ${r.type_donnee === 'observe' ? 'bg-success' : 'bg-warning text-dark'}">
+            ${r.type_donnee === 'observe' ? 'Observé' : 'Projeté'}
+          </span></td>
+      <td><span class="badge bg-secondary">${r.scenario}</span></td>
+    </tr>
+  `).join('');
+}
+
+function exporterCSVFiltres() {
+  const p = new URLSearchParams(_filtresActuels);
+  window.location.href = `{{ url_for('atlas.telecharger_csv') }}?${p.toString()}`;
+}
+
+// Bouton GeoJSON dans l'onglet données
+document.getElementById('btn-dl-geojson2').addEventListener('click', () => {
+  const annee = document.getElementById('req-annee').value || currentAnnee;
+  const sc    = _filtresActuels.scenario || 'tendanciel';
+  window.location.href = `${URL_DL_GEOJSON}${annee}?scenario=${sc}`;
+});
+
+// ─────────────────────────────────────────────────────────────────
+// SEED DÉMO (admin)
+// ─────────────────────────────────────────────────────────────────
+const seedBtn = document.getElementById('btn-seed-demo');
+if (seedBtn) {
+  seedBtn.addEventListener('click', async () => {
+    if (!confirm("Charger les données de démonstration ? Les données existantes seront remplacées.")) return;
+    seedBtn.disabled    = true;
+    seedBtn.textContent = 'Chargement…';
+    try {
+      const resp = await fetch(URL_SEED, {
+        method:  'POST',
+        headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+      });
+      const json = await resp.json();
+      if (json.ok) {
+        alert(json.message + '\nLa page va se recharger.');
+        window.location.reload();
+      } else {
+        alert('Erreur : ' + json.message);
+        seedBtn.disabled    = false;
+        seedBtn.textContent = 'Données démo';
+      }
+    } catch (e) {
+      alert('Erreur réseau.');
+      seedBtn.disabled    = false;
+      seedBtn.textContent = 'Données démo';
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// INITIALISATION au chargement
+// ─────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initMapAtlas();
+
+  // Lien GeoJSON initial
+  const dlBtn = document.getElementById('btn-dl-geojson');
+  if (dlBtn) dlBtn.href = `${URL_DL_GEOJSON}${currentAnnee}?scenario=tendanciel`;
+
+  // Initialiser les graphiques au clic sur l'onglet (lazy)
+  document.getElementById('tab-graph-lnk').addEventListener('shown.bs.tab', () => {
+    chargerGraphiques();
+  });
+
+  // Initialiser les cartes de comparaison au clic sur l'onglet
+  document.getElementById('tab-comp-lnk').addEventListener('shown.bs.tab', () => {
+    initMapsComp();
+    // Invalider les tuiles (redimensionnement)
+    setTimeout(() => {
+      mapAvant && mapAvant.invalidateSize();
+      mapApres && mapApres.invalidateSize();
+    }, 150);
+    lancerComparaison();
+  });
+
+  // Invalider la carte principale si l'onglet est ré-activé
+  document.getElementById('tab-carte-lnk').addEventListener('shown.bs.tab', () => {
+    mapAtlas && mapAtlas.invalidateSize();
+  });
+});
+</script>
+{% endblock %}

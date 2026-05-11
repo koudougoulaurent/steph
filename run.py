@@ -6,6 +6,7 @@ Direction Régionale de l'Environnement
 
 from app import create_app, db
 from app.models import User, Couverture, FeuxBrousse, SiteVulnerable, IndicateurBraconnage, Rapport, CampagneCollecte
+from app.models.atlas import ResultatAtlas
 import os
 
 config_name = os.environ.get('FLASK_CONFIG', 'default')
@@ -22,6 +23,7 @@ def make_shell_context():
         'IndicateurBraconnage': IndicateurBraconnage,
         'Rapport': Rapport,
         'CampagneCollecte': CampagneCollecte,
+        'ResultatAtlas': ResultatAtlas,
     }
 
 @app.cli.command("init-db")
