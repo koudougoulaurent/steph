@@ -125,6 +125,17 @@ def create_app(config_name='default'):
 
     with app.app_context():
         db.create_all()
+        # Auto-seed Atlas si la table est vide mais que les classes existent déjà
+        try:
+            from app.models.atlas import ResultatAtlas
+            from app.models import ClasseCouverture
+            if (ResultatAtlas.query.count() == 0
+                    and ClasseCouverture.query.count() > 0):
+                from app.utils.seed_atlas import seed_atlas
+                seed_atlas()
+                app.logger.info('Atlas auto-seedé au démarrage.')
+        except Exception as exc:  # noqa: BLE001
+            app.logger.warning('Auto-seed Atlas ignoré : %s', exc)
 
     # ── Logging ───────────────────────────────────────────────────
     if not app.debug:
